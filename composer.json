@@ -1,0 +1,22 @@
+{
+  "name": "monkeyscloud/monkeyslegion-i18n",
+  "description": "I18n & localization component for the MonkeysLegion PHP framework",
+  "type": "library",
+  "license": "MIT",
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "require": {
+    "php": "^8.4",
+    "ext-json": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "MonkeysLegion\\I18n\\": "src/"
+    }
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-main": "1.0.x-dev"
+    }
+  }
+}
