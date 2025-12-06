@@ -7,20 +7,15 @@ parameters:
         - tests
     
     ignoreErrors:
-        # PSR-16 CacheInterface (optional dependency)
-        - '#(has unknown class|has invalid type|Class|Call to method .* on an unknown class) Psr\\SimpleCache\\CacheInterface#'
-        
         # Superglobals are mixed by nature
-        - '#Cannot access offset .* on mixed#'
         - '#Parameter .* expects string, mixed given#'
         
         # PDO methods return mixed/false
         - '#Cannot call method .* on PDOStatement\|false#'
         - '#Cannot access offset .* on mixed#'
         
-        # Array type widening is acceptable
-        - '#does not accept array<(string, )?mixed>#'
-        - '#should return .* but returns array<mixed, mixed>#'
+        # Array type widening from untyped sources (require, json_decode)
+        - '#should return array<string, mixed> but returns array<mixed, mixed>#'
         
         # String casting from validated sources
         - '#Cannot cast mixed to (string|int)#'

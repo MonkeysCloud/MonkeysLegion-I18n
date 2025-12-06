@@ -21,39 +21,39 @@ final class Pluralizer
     {
         // Parse the plural message
         $forms = $this->parsePlural($message);
-        
+
         if (empty($forms)) {
             return $message;
         }
-        
+
         // Get the plural rule for this locale
         $rule = $this->getPluralRule($locale);
-        
+
         // Check for explicit count match first: {0}, {1}, {2}, etc.
         foreach ($forms as $form) {
             if ($this->matchesExplicitCount($form, $count)) {
-                return $this->extractMessage($form);
+                return $this->replaceCount($this->extractMessage($form), $count);
             }
         }
-        
+
         // Check for range match: [2,5], [6,*]
         foreach ($forms as $form) {
             if ($this->matchesRange($form, $count)) {
-                return $this->extractMessage($form);
+                return $this->replaceCount($this->extractMessage($form), $count);
             }
         }
-        
+
         // Use ICU plural rules: zero, one, two, few, many, other
         $category = $this->getPluralCategory($count, $rule);
-        
+
         foreach ($forms as $form) {
             if ($this->matchesCategory($form, $category)) {
-                return $this->extractMessage($form);
+                return $this->replaceCount($this->extractMessage($form), $count);
             }
         }
-        
+
         // Fallback to simple pipe-delimited format
-        return $this->simpleChoice($forms, $count);
+        return $this->replaceCount($this->simpleChoice($forms, $count), $count);
     }
 
     /**
@@ -134,38 +134,38 @@ final class Pluralizer
         $i = (int)$n;
         $v = $this->getDecimalPlaces($n);
         $f = $this->getFractionalPart($n);
-        
-        return match($rule) {
+
+        return match ($rule) {
             // English, German, Dutch, Swedish, Danish, Norwegian, Finnish
             'one-other' => ($n === 1) ? 'one' : 'other',
-            
+
             // French, Portuguese (Brazil)
             'one-with-zero-other' => ($n >= 0 && $n < 2) ? 'one' : 'other',
-            
+
             // Spanish, Italian
             'one-other-strict' => ($n === 1) ? 'one' : 'other',
-            
+
             // Polish
             'polish' => $this->polishRule($n, $i, $v),
-            
+
             // Russian, Ukrainian, Serbian, Croatian
             'russian' => $this->russianRule($n, $i, $v),
-            
+
             // Czech, Slovak
             'czech' => $this->czechRule($n, $i, $v),
-            
+
             // Romanian
             'romanian' => $this->romanianRule($n, $i, $v),
-            
+
             // Arabic
             'arabic' => $this->arabicRule($n),
-            
+
             // Welsh
             'welsh' => $this->welshRule($n),
-            
+
             // Japanese, Korean, Chinese, Thai, Vietnamese
             'zero' => 'other',
-            
+
             default => ($n === 1) ? 'one' : 'other'
         };
     }
@@ -243,7 +243,7 @@ final class Pluralizer
         if ($n % 100 >= 3 && $n % 100 <= 10) {
             return 'few';
         }
-        if ($n % 100 >= 11 && $n % 100 <= 99) {
+        if ($n % 100 >= 11) {
             return 'many';
         }
         return 'other';
@@ -297,14 +297,21 @@ final class Pluralizer
     }
 
     /**
+     * Replace :count placeholder with actual count
+     */
+    private function replaceCount(string $message, int|float $count): string
+    {
+        return str_replace(':count', (string)$count, $message);
+    }
+    /**
      * Get plural rule for locale
      */
     private function getPluralRule(string $locale): string
     {
         // Extract language code
         $lang = substr($locale, 0, 2);
-        
-        return match($lang) {
+
+        return match ($lang) {
             'pl' => 'polish',
             'ru', 'uk', 'be', 'sr', 'hr' => 'russian',
             'cs', 'sk' => 'czech',

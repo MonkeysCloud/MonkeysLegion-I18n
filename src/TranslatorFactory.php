@@ -47,37 +47,42 @@ final class TranslatorFactory
         $pdo = $config['pdo'] ?? null;
         $namespaces = $config['namespaces'] ?? [];
         $trackMissing = $config['track_missing'] ?? false;
-        
+
         // Create translator
         $translator = new Translator($locale, $fallback);
-        
+
         // Add file loader
         $fileLoader = new FileLoader($path);
-        
+
         // Add namespaces to file loader
         foreach ($namespaces as $namespace => $namespacePath) {
             $fileLoader->addNamespace($namespace, $namespacePath);
             $translator->addNamespace($namespace, $namespacePath);
         }
-        
+
         // Wrap with cache if available
         if ($cache instanceof CacheInterface) {
             $fileLoader = new CacheLoader($fileLoader, $cache, $cacheTtl);
         }
-        
+
         $translator->addLoader($fileLoader);
-        
+
         // Add database loader if PDO provided
         if ($pdo instanceof PDO) {
             $dbLoader = new DatabaseLoader($pdo);
+
+            if ($cache instanceof CacheInterface) {
+                $dbLoader = new CacheLoader($dbLoader, $cache, $cacheTtl);
+            }
+
             $translator->addLoader($dbLoader);
         }
-        
+
         // Enable missing translation tracking
         if ($trackMissing) {
             $translator->setTrackMissing(true);
         }
-        
+
         return $translator;
     }
 
@@ -97,12 +102,12 @@ final class TranslatorFactory
         $fallback = $config['fallback'] ?? 'en';
         $supported = $config['supported'] ?? ['en'];
         $detectors = $config['detectors'] ?? ['url', 'session', 'cookie', 'header'];
-        
+
         $manager = new LocaleManager($default, $supported, $fallback);
-        
+
         // Add detectors in priority order
         foreach ($detectors as $detector) {
-            match($detector) {
+            match ($detector) {
                 'url' => $manager->addDetector(new UrlDetector()),
                 'session' => $manager->addDetector(new SessionDetector()),
                 'cookie' => $manager->addDetector(new CookieDetector()),
@@ -111,7 +116,7 @@ final class TranslatorFactory
                 default => null
             };
         }
-        
+
         return $manager;
     }
 
@@ -124,12 +129,16 @@ final class TranslatorFactory
      */
     public static function createSystem(array $config = []): array
     {
-        $manager = self::createLocaleManager($config);
+        /** @var array{default?: string, fallback?: string, supported?: array<string>, detectors?: array<string>} $localeConfig */
+        $localeConfig = $config;
+        $manager = self::createLocaleManager($localeConfig);
         $locale = $manager->detectLocale();
-        
+
         $config['locale'] = $locale;
-        $translator = self::create($config);
-        
+        /** @var array{locale?: string, fallback?: string, path?: string, cache?: \Psr\SimpleCache\CacheInterface|null, cache_ttl?: int, pdo?: \PDO|null, supported_locales?: array<string>, detectors?: array<string>, ...} $translatorConfig */
+        $translatorConfig = $config;
+        $translator = self::create($translatorConfig);
+
         return [
             'translator' => $translator,
             'manager' => $manager,

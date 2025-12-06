@@ -54,7 +54,7 @@ final class TranslationManager
                 source = VALUES(source),
                 updated_at = CURRENT_TIMESTAMP
         ");
-        
+
         $stmt->execute([$locale, $group, $namespace, $key, $value, $source]);
     }
 
@@ -69,22 +69,22 @@ final class TranslationManager
     ): ?string {
         $sql = "SELECT value FROM {$this->tableName} 
                 WHERE locale = ? AND `group` = ? AND `key` = ?";
-        
+
         $params = [$locale, $group, $key];
-        
+
         if ($namespace !== null) {
             $sql .= " AND namespace = ?";
             $params[] = $namespace;
         } else {
             $sql .= " AND namespace IS NULL";
         }
-        
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($result === false || !array_key_exists('value', $result) || !is_string($result['value'])) {
+        if (!is_array($result) || !array_key_exists('value', $result) || !is_string($result['value'])) {
             return null;
         }
 
@@ -102,19 +102,19 @@ final class TranslationManager
     ): bool {
         $sql = "DELETE FROM {$this->tableName} 
                 WHERE locale = ? AND `group` = ? AND `key` = ?";
-        
+
         $params = [$locale, $group, $key];
-        
+
         if ($namespace !== null) {
             $sql .= " AND namespace = ?";
             $params[] = $namespace;
         } else {
             $sql .= " AND namespace IS NULL";
         }
-        
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
-        
+
         return $stmt->rowCount() > 0;
     }
 
@@ -130,18 +130,18 @@ final class TranslationManager
     ): array {
         $sql = "SELECT `key`, value FROM {$this->tableName} 
                 WHERE locale = ? AND `group` = ?";
-        
+
         $params = [$locale, $group];
-        
+
         if ($namespace !== null) {
             $sql .= " AND namespace = ?";
             $params[] = $namespace;
         } else {
             $sql .= " AND namespace IS NULL";
         }
-        
+
         $sql .= " ORDER BY `key`";
-        
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
@@ -154,7 +154,7 @@ final class TranslationManager
             $value = $row['value'] ?? '';
             $this->setNestedValue($translations, (string)$row['key'], (string)$value);
         }
-        
+
         return $translations;
     }
 
@@ -181,9 +181,10 @@ final class TranslationManager
                 return 0;
             }
 
+            /** @var array<string, mixed> $data */
             return $this->importArray($locale, $group, $data, 'file_import', $overwrite);
         }
-        
+
         // Try PHP
         $phpFile = $this->filePath . "/{$locale}/{$group}.php";
         if (file_exists($phpFile)) {
@@ -193,9 +194,10 @@ final class TranslationManager
                 return 0;
             }
 
+            /** @var array<string, mixed> $data */
             return $this->importArray($locale, $group, $data, 'file_import', $overwrite);
         }
-        
+
         return 0;
     }
 
@@ -214,9 +216,9 @@ final class TranslationManager
     ): int {
         $flat = $this->flattenArray($translations);
         $count = 0;
-        
+
         $this->pdo->beginTransaction();
-        
+
         try {
             if ($overwrite) {
                 $stmt = $this->pdo->prepare("
@@ -233,18 +235,17 @@ final class TranslationManager
                     VALUES (?, ?, ?, ?, ?, ?)
                 ");
             }
-            
+
             foreach ($flat as $key => $value) {
                 $stmt->execute([$locale, $group, $namespace, $key, $value, $source]);
                 if ($stmt->rowCount() > 0) {
                     $count++;
                 }
             }
-            
+
             $this->pdo->commit();
-            
+
             return $count;
-            
         } catch (\Exception $e) {
             $this->pdo->rollBack();
             throw $e;
@@ -261,14 +262,14 @@ final class TranslationManager
         ?string $namespace = null
     ): string {
         $translations = $this->getGroup($locale, $group, $namespace);
-        
+
         $directory = $this->filePath . "/{$locale}";
         if (!is_dir($directory)) {
             mkdir($directory, 0755, true);
         }
-        
+
         $filename = $directory . "/{$group}." . $format;
-        
+
         if ($format === 'json') {
             file_put_contents(
                 $filename,
@@ -280,7 +281,7 @@ final class TranslationManager
                 "<?php\n\nreturn " . var_export($translations, true) . ";\n"
             );
         }
-        
+
         return $filename;
     }
 
@@ -329,10 +330,10 @@ final class TranslationManager
                 $fileTranslations = is_array($data) ? $data : [];
             }
         }
-        
+
         // Get from database
         $dbTranslations = $this->getGroup($locale, $group);
-        
+
         // Merge (database wins)
         return array_merge($fileTranslations, $dbTranslations);
     }
@@ -355,12 +356,12 @@ final class TranslationManager
                 $fileTranslations = is_array($decoded) ? $decoded : [];
             }
         }
-        
+
         $dbTranslations = $this->getGroup($locale, $group);
-        
+
         $fileKeys = array_keys($this->flattenArray($fileTranslations));
         $dbKeys = array_keys($this->flattenArray($dbTranslations));
-        
+
         return array_diff($fileKeys, $dbKeys);
     }
 
@@ -379,7 +380,7 @@ final class TranslationManager
         $total = $this->pdo->query("
             SELECT COUNT(*) as count FROM {$this->tableName}
         ")->fetch(PDO::FETCH_ASSOC)['count'];
-        
+
         $byLocale = [];
         $stmt = $this->pdo->query("
             SELECT locale, COUNT(*) as count 
@@ -387,9 +388,11 @@ final class TranslationManager
             GROUP BY locale
         ");
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $byLocale[$row['locale']] = (int)$row['count'];
+            if (is_array($row) && isset($row['locale']) && is_string($row['locale'])) {
+                $byLocale[$row['locale']] = (int)$row['count'];
+            }
         }
-        
+
         $byGroup = [];
         $stmt = $this->pdo->query("
             SELECT `group`, COUNT(*) as count 
@@ -397,9 +400,11 @@ final class TranslationManager
             GROUP BY `group`
         ");
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $byGroup[$row['group']] = (int)$row['count'];
+            if (is_array($row) && isset($row['group']) && is_string($row['group'])) {
+                $byGroup[$row['group']] = (int)$row['count'];
+            }
         }
-        
+
         $bySource = [];
         $stmt = $this->pdo->query("
             SELECT source, COUNT(*) as count 
@@ -407,9 +412,11 @@ final class TranslationManager
             GROUP BY source
         ");
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $bySource[$row['source']] = (int)$row['count'];
+            if (is_array($row) && isset($row['source']) && is_string($row['source'])) {
+                $bySource[$row['source']] = (int)$row['count'];
+            }
         }
-        
+
         return [
             'total' => (int)$total,
             'by_locale' => $byLocale,
@@ -428,19 +435,19 @@ final class TranslationManager
         $sql = "SELECT locale, `group`, `key`, value 
                 FROM {$this->tableName} 
                 WHERE (`key` LIKE ? OR value LIKE ?)";
-        
+
         $params = ["%{$query}%", "%{$query}%"];
-        
+
         if ($locale !== null) {
             $sql .= " AND locale = ?";
             $params[] = $locale;
         }
-        
+
         $sql .= " ORDER BY locale, `group`, `key` LIMIT 100";
-        
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
-        
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -452,16 +459,16 @@ final class TranslationManager
     public function batchUpdate(array $translations): int
     {
         $count = 0;
-        
+
         $this->pdo->beginTransaction();
-        
+
         try {
             $stmt = $this->pdo->prepare("
                 UPDATE {$this->tableName}
                 SET value = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE locale = ? AND `group` = ? AND `key` = ?
             ");
-            
+
             foreach ($translations as $trans) {
                 $stmt->execute([
                     $trans['value'],
@@ -469,16 +476,15 @@ final class TranslationManager
                     $trans['group'],
                     $trans['key']
                 ]);
-                
+
                 if ($stmt->rowCount() > 0) {
                     $count++;
                 }
             }
-            
+
             $this->pdo->commit();
-            
+
             return $count;
-            
         } catch (\Exception $e) {
             $this->pdo->rollBack();
             throw $e;
@@ -496,19 +502,18 @@ final class TranslationManager
         $result = [];
 
         foreach ($array as $key => $value) {
-            if (!is_string($key)) {
-                $key = (string)$key;
-            }
+            $key = (string)$key;
 
             $newKey = $prefix === '' ? $key : $prefix . '.' . $key;
 
             if (is_array($value)) {
+                /** @var array<string, mixed> $value */
                 $result = array_merge($result, $this->flattenArray($value, $newKey));
             } else {
                 $result[$newKey] = (string)$value;
             }
         }
-        
+
         return $result;
     }
 
@@ -521,14 +526,14 @@ final class TranslationManager
     {
         $keys = explode('.', $key);
         $current = &$array;
-        
+
         foreach ($keys as $k) {
             if (!isset($current[$k])) {
                 $current[$k] = [];
             }
             $current = &$current[$k];
         }
-        
+
         $current = $value;
     }
 }

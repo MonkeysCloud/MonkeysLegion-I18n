@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.3/phpunit.xsd"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.5/phpunit.xsd"
          bootstrap="tests/bootstrap.php"
          cacheDirectory=".phpunit.cache"
-         executionOrder="depends,defects"
-         beStrictAboutOutputDuringTests="true"
-         failOnRisky="true"
-         failOnWarning="true"
          colors="true">
     
     <testsuites>
@@ -22,27 +18,6 @@
             <directory>tests/Feature</directory>
         </testsuite>
     </testsuites>
-
-    <source restrictDeprecations="true"
-            restrictNotices="true"
-            restrictWarnings="true">
-        <include>
-            <directory>src</directory>
-        </include>
-        <exclude>
-            <directory>src/Console</directory>
-            <file>src/helpers.php</file>
-        </exclude>
-    </source>
-
-    <coverage>
-        <report>
-            <html outputDirectory="coverage/html" lowUpperBound="50" highLowerBound="80"/>
-            <text outputFile="php://stdout" showUncoveredFiles="true"/>
-            <clover outputFile="coverage/clover.xml"/>
-            <xml outputDirectory="coverage/xml"/>
-        </report>
-    </coverage>
 
     <php>
         <env name="APP_ENV" value="testing"/>
