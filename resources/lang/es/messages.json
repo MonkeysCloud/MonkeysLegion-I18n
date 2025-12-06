@@ -1,0 +1,70 @@
+{
+  "welcome": {
+    "title": "Bienvenido a MonkeysLegion",
+    "subtitle": "El Framework PHP Moderno",
+    "message": "¡Hola, :name! Bienvenido a nuestra plataforma.",
+    "cta": "Comenzar"
+  },
+  
+  "navigation": {
+    "home": "Inicio",
+    "about": "Acerca de",
+    "services": "Servicios",
+    "contact": "Contacto",
+    "login": "Iniciar Sesión",
+    "logout": "Cerrar Sesión",
+    "dashboard": "Panel"
+  },
+  
+  "messages": {
+    "count": "{0} Sin mensajes|{1} Un mensaje|[2,*] :count mensajes",
+    "unread": "one: Tienes un mensaje sin leer|other: Tienes :count mensajes sin leer",
+    "sent": "Mensaje enviado exitosamente",
+    "deleted": "Mensaje eliminado"
+  },
+  
+  "validation": {
+    "required": "El campo :field es obligatorio.",
+    "email": "El campo :field debe ser una dirección de correo válida.",
+    "min": "El campo :field debe tener al menos :min caracteres.",
+    "max": "El campo :field no debe exceder :max caracteres.",
+    "unique": "El :field ya ha sido tomado.",
+    "confirmed": "La confirmación de :field no coincide."
+  },
+  
+  "auth": {
+    "failed": "Estas credenciales no coinciden con nuestros registros.",
+    "throttle": "Demasiados intentos de inicio de sesión. Por favor intente de nuevo en :seconds segundos.",
+    "login": "Iniciar sesión en tu cuenta",
+    "register": "Crear nueva cuenta",
+    "forgot_password": "¿Olvidaste tu contraseña?",
+    "reset_password": "Restablecer Contraseña",
+    "logout_success": "Has cerrado sesión exitosamente."
+  },
+  
+  "errors": {
+    "404": "Página No Encontrada",
+    "403": "Acceso Prohibido",
+    "500": "Error Interno del Servidor",
+    "service_unavailable": "Servicio temporalmente no disponible"
+  },
+  
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "update": "Actualizar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "import": "Importar",
+    "yes": "Sí",
+    "no": "No",
+    "loading": "Cargando...",
+    "success": "¡Éxito!",
+    "error": "¡Error!",
+    "warning": "¡Advertencia!"
+  }
+}

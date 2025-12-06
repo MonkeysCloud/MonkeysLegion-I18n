@@ -1,22 +1,65 @@
 {
   "name": "monkeyscloud/monkeyslegion-i18n",
-  "description": "I18n & localization component for the MonkeysLegion PHP framework",
+  "description": "Production-ready I18n & localization component for the MonkeysLegion PHP framework",
   "type": "library",
   "license": "MIT",
+  "keywords": ["i18n", "localization", "translation", "monkeyslegion", "internationalization"],
   "minimum-stability": "dev",
   "prefer-stable": true,
+  "authors": [
+    {
+      "name": "MonkeysCloud",
+      "email": "jorge@monkeys.cloud"
+    }
+  ],
   "require": {
     "php": "^8.4",
-    "ext-json": "*"
+    "ext-json": "*",
+    "ext-mbstring": "*"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^12.3",
+    "phpstan/phpstan": "^2.1",
+    "psr/simple-cache": "^3.0"
+  },
+  "scripts": {
+    "test": "phpunit",
+    "test-debug": "phpunit --debug --verbose",
+    "test-coverage": "phpunit --coverage-html coverage",
+    "phpstan": "phpstan analyse src --memory-limit=512M",
+    "quality": [
+      "@phpstan",
+      "@test"
+    ],
+    "check-tests": "vendor/bin/phpunit --list-tests"
+  },
+  "suggest": {
+    "ext-intl": "For advanced number and currency formatting (optional)",
+    "monkeyscloud/monkeyslegion-cache": "For translation caching support",
+    "monkeyscloud/monkeyslegion-database": "For database translation loader",
+    "monkeyscloud/monkeyslegion-template": "For template directive support"
   },
   "autoload": {
     "psr-4": {
       "MonkeysLegion\\I18n\\": "src/"
+    },
+    "files": [
+      "src/helpers.php"
+    ]
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "MonkeysLegion\\I18n\\Tests\\": "tests/"
     }
   },
   "extra": {
     "branch-alias": {
-      "dev-main": "1.0.x-dev"
+      "dev-main": "2.0.x-dev"
     }
+  },
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true
   }
 }
+

@@ -1,0 +1,33 @@
+parameters:
+    level: 9
+    paths:
+        - src
+    excludePaths:
+        - src/Console/TranslationCommand.php
+        - tests
+    
+    ignoreErrors:
+        # PSR-16 CacheInterface (optional dependency)
+        - '#(has unknown class|has invalid type|Class|Call to method .* on an unknown class) Psr\\SimpleCache\\CacheInterface#'
+        
+        # Superglobals are mixed by nature
+        - '#Cannot access offset .* on mixed#'
+        - '#Parameter .* expects string, mixed given#'
+        
+        # PDO methods return mixed/false
+        - '#Cannot call method .* on PDOStatement\|false#'
+        - '#Cannot access offset .* on mixed#'
+        
+        # Array type widening is acceptable
+        - '#does not accept array<(string, )?mixed>#'
+        - '#should return .* but returns array<mixed, mixed>#'
+        
+        # String casting from validated sources
+        - '#Cannot cast mixed to (string|int)#'
+        
+        # Properties that are written but used by external code
+        - '#Property .* is never read, only written#'
+        
+        # Middleware has no standard interface
+        - '#Method .* has (no return type specified|parameter .* with no type specified)#'
+        - '#Call to an undefined method object::#'

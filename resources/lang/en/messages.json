@@ -1,0 +1,70 @@
+{
+  "welcome": {
+    "title": "Welcome to MonkeysLegion",
+    "subtitle": "The Modern PHP Framework",
+    "message": "Hello, :name! Welcome to our platform.",
+    "cta": "Get Started"
+  },
+  
+  "navigation": {
+    "home": "Home",
+    "about": "About",
+    "services": "Services",
+    "contact": "Contact",
+    "login": "Login",
+    "logout": "Logout",
+    "dashboard": "Dashboard"
+  },
+  
+  "messages": {
+    "count": "{0} No messages|{1} One message|[2,*] :count messages",
+    "unread": "one: You have one unread message|other: You have :count unread messages",
+    "sent": "Message sent successfully",
+    "deleted": "Message deleted"
+  },
+  
+  "validation": {
+    "required": "The :field field is required.",
+    "email": "The :field must be a valid email address.",
+    "min": "The :field must be at least :min characters.",
+    "max": "The :field must not exceed :max characters.",
+    "unique": "The :field has already been taken.",
+    "confirmed": "The :field confirmation does not match."
+  },
+  
+  "auth": {
+    "failed": "These credentials do not match our records.",
+    "throttle": "Too many login attempts. Please try again in :seconds seconds.",
+    "login": "Login to your account",
+    "register": "Create new account",
+    "forgot_password": "Forgot your password?",
+    "reset_password": "Reset Password",
+    "logout_success": "You have been logged out successfully."
+  },
+  
+  "errors": {
+    "404": "Page Not Found",
+    "403": "Access Forbidden",
+    "500": "Internal Server Error",
+    "service_unavailable": "Service temporarily unavailable"
+  },
+  
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "update": "Update",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "yes": "Yes",
+    "no": "No",
+    "loading": "Loading...",
+    "success": "Success!",
+    "error": "Error!",
+    "warning": "Warning!"
+  }
+}

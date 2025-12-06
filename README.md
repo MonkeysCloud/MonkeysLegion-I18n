@@ -1,111 +1,74 @@
-# MonkeysLegion I18n & Localization
+# MonkeysLegion I18n
 
-A simple, filesystem-driven translation component for MonkeysLegion.  
-Load JSON files per locale, translate message keys with placeholders, and use `@lang` in your MLView templates.
+Production-ready internationalization and localization package for MonkeysLegion framework.
 
----
+## Features
 
-## 📦 Installation
+- 🌍 **Multiple Translation Sources**: JSON files, PHP arrays, Database, Cache
+- 📝 **Pluralization**: ICU-compliant plural rules for 200+ languages
+- 🎯 **Auto Locale Detection**: URL, Session, Headers, Cookies, Browser
+- 🚀 **High Performance**: Built-in caching with MonkeysLegion-Cache integration
+- 🔄 **Fallback Chain**: Locale → Fallback → Default
+- 📦 **Namespacing**: Package-level translations (vendor::file.key)
+- 🎨 **Template Integration**: Custom directives for MonkeysLegion-Template
+- 📊 **Missing Translation Tracking**: Development mode tracking
+- 🔍 **Parameter Replacement**: Named placeholders with modifiers
+- 📅 **Date/Time Localization**: Format dates per locale
+- 💰 **Number/Currency Formatting**: Locale-aware formatting
 
-```bash
-composer require monkeyscloud/monkeyslegion-i18n:^1.0@dev
-```
-
-Ensure your composer.json autoloads the PSR-4 namespace:
-
-```json
-"autoload": {
-  "psr-4": {
-    "MonkeysLegion\\I18n\\": "src/"
-  }
-}
-```
-
-Then run:
+## Installation
 
 ```bash
-composer dump-autoload
+composer require monkeyscloud/monkeyslegion-i18n
 ```
 
-## 🔧 Configuration
-Register the translator in your DI container (config/app.php):
+**Note**: The `php-intl` extension is **optional**. The package works perfectly without it, with fallback implementations for all features. See [INTL_GUIDE.md](INTL_GUIDE.md) for details.
+
+## Quick Start
+
 ```php
-use MonkeysLegion\I18n\Translator;
+use MonkeysLegion\I18n\TranslatorFactory;
 
-Translator::class => fn($c) => new Translator(
-    // get locale from config or request
-    $c->get(MonkeysLegion\Mlc\Config::class)->get('app.locale', 'en'),
-    base_path('resources/lang'),
-    'en' // fallback locale
-),
-```
-## 🗂 Directory Structure
-```plaintext
-resources/lang/
-├─ en.json      # fallback / default locale
-├─ fr.json      # French translations
-└─ es.json      # Spanish translations
-```
-Each file is a flat JSON map:
-```json
-{
-  "welcome":          "Welcome to MonkeysLegion!",
-  "posts.count":      "There are :count posts",
-  "user.greeting":    "Hello, :name!"
-}
+// Create translator
+$translator = TranslatorFactory::create([
+    'locale' => 'es',
+    'fallback' => 'en',
+    'path' => __DIR__ . '/resources/lang'
+]);
+
+// Basic translation
+echo $translator->trans('welcome.message'); 
+// "Bienvenido a MonkeysLegion"
+
+// With replacements
+echo $translator->trans('welcome.user', ['name' => 'Yorch']);
+// "Bienvenido, Yorch"
+
+// Pluralization
+echo $translator->choice('messages.count', 5);
+// "Tienes 5 mensajes"
 ```
 
-## 🚀 Usage
-### In PHP
+## Advanced Usage
 
-Fetch the service and call trans():
+### Namespace Translations
 ```php
-/** @var Translator $t */
-$t = $container->get(Translator::class);
-
-echo $t->trans('welcome');
-// → “Welcome to MonkeysLegion!”
-
-echo $t->trans('posts.count', ['count'=>5]);
-// → “There are 5 posts”
+$translator->trans('monkeysmail::errors.invalid_email');
 ```
-Switch locale at runtime:
+
+### Locale Detection Middleware
 ```php
-$t->setLocale('fr');
-echo $t->trans('welcome');
-// → “Bienvenue sur MonkeysLegion !”
-```
-### 🖋 Template Integration
-1) Helper
-
-Add a small global helper (e.g. in src/Template/helpers.php):
-```php
-if (! function_exists('trans')) {
-    function trans(string $key, array $replace = []): string {
-        return ML_CONTAINER->get(\MonkeysLegion\I18n\Translator::class)
-                           ->trans($key, $replace);
-    }
-}
-```
-2) Compiler Directive
-
-In your MLView Compiler, add:
-```php
-// after processing other directives...
-$php = preg_replace_callback(
-    "/@lang$begin:math:text$['\\"](.+?)['\\"](?:\\s*,\\s*(\\[[^\\]]*\\]))?$end:math:text$/",
-    fn($m) => "<?php echo trans('{$m[1]}', {$m[2] ?? '[]'}); ?>",
-    $php
-);
-```
-Then in your templates:
-```html
-<h1>@lang('welcome')</h1>
-<p>@lang('posts.count', ['count'=>$count])</p>
+$router->middleware(LocaleMiddleware::class);
 ```
 
-## ⚙️ Fallback Behavior
-- If a key is missing in the current locale, it falls back to the “fallback” locale (default en).
-- If still missing, the key itself is returned (so you see "user.greeting" rather than an error).
+### Template Directives
+```blade
+@lang('welcome.title')
+@choice('cart.items', $count)
+@date($timestamp, 'long')
+@currency($amount, 'USD')
+```
 
-⸻
+## Configuration
+
+See `config/i18n.php` for full configuration options.
