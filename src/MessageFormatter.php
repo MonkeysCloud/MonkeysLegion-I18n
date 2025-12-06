@@ -71,15 +71,15 @@ final class MessageFormatter implements MessageFormatterInterface
     {
         // Pattern: {key} or {key|modifier} or {key|modifier:arg}
         $pattern = '/\{' . preg_quote($key, '/') . '(?:\|([a-z_]+)(?::([^}]+))?)?\}/i';
-        
-        return preg_replace_callback($pattern, function($matches) use ($value, $locale) {
+
+        return (string)preg_replace_callback($pattern, function($matches) use ($value, $locale) {
             $modifier = $matches[1] ?? null;
             $argument = $matches[2] ?? null;
-            
+
             if ($modifier === null) {
                 return $this->convertToString($value, $locale);
             }
-            
+
             return $this->applyModifier($value, $modifier, $argument, $locale);
         }, $message);
     }

@@ -22,11 +22,11 @@ final class UrlDetector implements LocaleDetectorInterface
     public function detect(): ?string
     {
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
-        
-        if ($path === null || $path === '' || $path === '/') {
+
+        if (!is_string($path) || $path === '' || $path === '/') {
             return null;
         }
-        
+
         $segments = array_values(array_filter(explode('/', $path)));
         
         if (!isset($segments[$this->segment])) {

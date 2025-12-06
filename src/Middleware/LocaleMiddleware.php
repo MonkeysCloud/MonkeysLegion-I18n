@@ -93,7 +93,7 @@ final class LocaleUrlMiddleware
     {
         // Get locale from URL
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
-        $segments = array_values(array_filter(explode('/', $path ?? '')));
+        $segments = array_values(array_filter(explode('/', is_string($path) ? $path : '')));
         
         if (isset($segments[$this->segment])) {
             $locale = strtolower($segments[$this->segment]);
@@ -134,7 +134,7 @@ final class LocaleRedirectMiddleware
     public function handle($request, callable $next)
     {
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '/';
-        $segments = array_values(array_filter(explode('/', $path)));
+        $segments = array_values(array_filter(explode('/', is_string($path) ? $path : '')));
         
         // Check if locale is in URL
         $hasLocale = isset($segments[$this->segment]) 

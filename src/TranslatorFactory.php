@@ -118,6 +118,8 @@ final class TranslatorFactory
     /**
      * Create a complete I18n system with translator and locale manager
      * 
+     * @param array<string, mixed> $config
+     *
      * @return array{translator: Translator, manager: LocaleManager}
      */
     public static function createSystem(array $config = []): array

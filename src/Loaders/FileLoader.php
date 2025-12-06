@@ -105,14 +105,18 @@ final class FileLoader implements LoaderInterface
         $phpFile = $path . DIRECTORY_SEPARATOR . $locale . '.php';
         if (is_file($phpFile)) {
             $data = $this->loadPhpFile($phpFile);
-            return $data[$group] ?? [];
+            $groupData = $data[$group] ?? [];
+
+            return is_array($groupData) ? $groupData : [];
         }
-        
+
         // Try JSON file
         $jsonFile = $path . DIRECTORY_SEPARATOR . $locale . '.json';
         if (is_file($jsonFile)) {
             $data = $this->loadJsonFile($jsonFile);
-            return $data[$group] ?? [];
+            $groupData = $data[$group] ?? [];
+
+            return is_array($groupData) ? $groupData : [];
         }
         
         return [];

@@ -107,14 +107,17 @@ final class Pluralizer
     private function extractMessage(string $form): string
     {
         // Remove {n}, [n,m], or category: prefix
-        $form = preg_replace('/^\{(\d+)\}\s*/', '', $form);
-        $form = preg_replace('/^\[(\d+),(\*|\d+)\]\s*/', '', $form);
-        $form = preg_replace('/^(zero|one|two|few|many|other):\s*/i', '', $form);
+        $form = (string)preg_replace('/^\{(\d+)\}\s*/', '', $form);
+        $form = (string)preg_replace('/^\[(\d+),(\*|\d+)\]\s*/', '', $form);
+        $form = (string)preg_replace('/^(zero|one|two|few|many|other):\s*/i', '', $form);
         return trim($form);
     }
 
     /**
      * Simple choice between singular/plural (fallback)
+     */
+    /**
+     * @param array<int, string> $forms
      */
     private function simpleChoice(array $forms, int|float $count): string
     {
@@ -228,13 +231,13 @@ final class Pluralizer
      */
     private function arabicRule(float $n): string
     {
-        if ($n === 0) {
+        if ($n === 0.0) {
             return 'zero';
         }
-        if ($n === 1) {
+        if ($n === 1.0) {
             return 'one';
         }
-        if ($n === 2) {
+        if ($n === 2.0) {
             return 'two';
         }
         if ($n % 100 >= 3 && $n % 100 <= 10) {
@@ -251,19 +254,19 @@ final class Pluralizer
      */
     private function welshRule(float $n): string
     {
-        if ($n === 0) {
+        if ($n === 0.0) {
             return 'zero';
         }
-        if ($n === 1) {
+        if ($n === 1.0) {
             return 'one';
         }
-        if ($n === 2) {
+        if ($n === 2.0) {
             return 'two';
         }
-        if ($n === 3) {
+        if ($n === 3.0) {
             return 'few';
         }
-        if ($n === 6) {
+        if ($n === 6.0) {
             return 'many';
         }
         return 'other';
