@@ -81,9 +81,14 @@ final class TranslationManager
         
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
-        
+
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $result ? $result['value'] : null;
+
+        if ($result === false || !array_key_exists('value', $result) || !is_string($result['value'])) {
+            return null;
+        }
+
+        return $result['value'];
     }
 
     /**
@@ -115,8 +120,8 @@ final class TranslationManager
 
     /**
      * Get all translations for a locale/group from database
-     * 
-     * @return array<string, string>
+     *
+     * @return array<string, mixed>
      */
     public function getGroup(
         string $locale,
@@ -139,10 +144,15 @@ final class TranslationManager
         
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
-        
+
         $translations = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $this->setNestedValue($translations, $row['key'], $row['value']);
+            if (!isset($row['key'])) {
+                continue;
+            }
+
+            $value = $row['value'] ?? '';
+            $this->setNestedValue($translations, (string)$row['key'], (string)$value);
         }
         
         return $translations;
@@ -159,7 +169,18 @@ final class TranslationManager
         // Try JSON first
         $jsonFile = $this->filePath . "/{$locale}/{$group}.json";
         if (file_exists($jsonFile)) {
-            $data = json_decode(file_get_contents($jsonFile), true);
+            $contents = file_get_contents($jsonFile);
+
+            if ($contents === false) {
+                return 0;
+            }
+
+            $data = json_decode($contents, true);
+
+            if (!is_array($data)) {
+                return 0;
+            }
+
             return $this->importArray($locale, $group, $data, 'file_import', $overwrite);
         }
         
@@ -167,6 +188,11 @@ final class TranslationManager
         $phpFile = $this->filePath . "/{$locale}/{$group}.php";
         if (file_exists($phpFile)) {
             $data = require $phpFile;
+
+            if (!is_array($data)) {
+                return 0;
+            }
+
             return $this->importArray($locale, $group, $data, 'file_import', $overwrite);
         }
         
@@ -287,14 +313,20 @@ final class TranslationManager
     {
         // Get from file
         $fileTranslations = [];
-        
+
         $jsonFile = $this->filePath . "/{$locale}/{$group}.json";
         if (file_exists($jsonFile)) {
-            $fileTranslations = json_decode(file_get_contents($jsonFile), true);
+            $contents = file_get_contents($jsonFile);
+
+            if ($contents !== false) {
+                $decoded = json_decode($contents, true);
+                $fileTranslations = is_array($decoded) ? $decoded : [];
+            }
         } else {
             $phpFile = $this->filePath . "/{$locale}/{$group}.php";
             if (file_exists($phpFile)) {
-                $fileTranslations = require $phpFile;
+                $data = require $phpFile;
+                $fileTranslations = is_array($data) ? $data : [];
             }
         }
         
@@ -313,10 +345,15 @@ final class TranslationManager
     public function findMissing(string $locale, string $group): array
     {
         $fileTranslations = [];
-        
+
         $jsonFile = $this->filePath . "/{$locale}/{$group}.json";
         if (file_exists($jsonFile)) {
-            $fileTranslations = json_decode(file_get_contents($jsonFile), true);
+            $contents = file_get_contents($jsonFile);
+
+            if ($contents !== false) {
+                $decoded = json_decode($contents, true);
+                $fileTranslations = is_array($decoded) ? $decoded : [];
+            }
         }
         
         $dbTranslations = $this->getGroup($locale, $group);
@@ -457,10 +494,14 @@ final class TranslationManager
     private function flattenArray(array $array, string $prefix = ''): array
     {
         $result = [];
-        
+
         foreach ($array as $key => $value) {
+            if (!is_string($key)) {
+                $key = (string)$key;
+            }
+
             $newKey = $prefix === '' ? $key : $prefix . '.' . $key;
-            
+
             if (is_array($value)) {
                 $result = array_merge($result, $this->flattenArray($value, $newKey));
             } else {

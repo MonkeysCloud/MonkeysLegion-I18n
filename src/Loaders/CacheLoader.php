@@ -68,10 +68,7 @@ final class CacheLoader implements LoaderInterface
      */
     public function flush(): void
     {
-        // If cache implements clear, use it
-        if (method_exists($this->cache, 'clear')) {
-            $this->cache->clear();
-        }
+        $this->cache->clear();
     }
 
     /**

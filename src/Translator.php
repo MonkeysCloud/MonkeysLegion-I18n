@@ -19,10 +19,10 @@ final class Translator
     /** @var LoaderInterface[] */
     private array $loaders = [];
     
-    /** @var array<string, array<string, string>> */
+    /** @var array<string, array<string, mixed>> */
     private array $messages = [];
-    
-    /** @var array<string> */
+
+    /** @var array<string, bool> */
     private array $loadedNamespaces = [];
     
     private MessageFormatterInterface $formatter;

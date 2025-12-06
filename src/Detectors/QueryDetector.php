@@ -20,6 +20,8 @@ final class QueryDetector implements LocaleDetectorInterface
 
     public function detect(): ?string
     {
-        return $_GET[$this->parameter] ?? null;
+        $value = $_GET[$this->parameter] ?? null;
+
+        return is_string($value) ? $value : null;
     }
 }

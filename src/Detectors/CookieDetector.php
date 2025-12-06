@@ -20,6 +20,8 @@ final class CookieDetector implements LocaleDetectorInterface
 
     public function detect(): ?string
     {
-        return $_COOKIE[$this->name] ?? null;
+        $value = $_COOKIE[$this->name] ?? null;
+
+        return is_string($value) ? $value : null;
     }
 }

@@ -23,7 +23,9 @@ final class SessionDetector implements LocaleDetectorInterface
         if (session_status() !== PHP_SESSION_ACTIVE) {
             return null;
         }
-        
-        return $_SESSION[$this->key] ?? null;
+
+        $value = $_SESSION[$this->key] ?? null;
+
+        return is_string($value) ? $value : null;
     }
 }
