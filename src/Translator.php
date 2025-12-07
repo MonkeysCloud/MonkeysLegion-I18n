@@ -15,24 +15,24 @@ final class Translator
 {
     private string $locale;
     private string $fallbackLocale;
-    
+
     /** @var LoaderInterface[] */
     private array $loaders = [];
-    
+
     /** @var array<string, array<string, mixed>> */
     private array $messages = [];
 
     /** @var array<string, bool> */
     private array $loadedNamespaces = [];
-    
+
     private MessageFormatterInterface $formatter;
     private Pluralizer $pluralizer;
-    
+
     /** @var array<string> Missing translation keys for debugging */
     private array $missingTranslations = [];
-    
+
     private bool $trackMissing = false;
-    
+
     /** @var array<string, string> Namespace to path mapping */
     private array $namespaces = [];
 
@@ -74,28 +74,28 @@ final class Translator
     public function trans(string $key, array $replace = [], ?string $locale = null): string
     {
         $locale = $locale ?? $this->locale;
-        
+
         // Parse namespace::group.key format
         [$namespace, $group, $item] = $this->parseKey($key);
-        
+
         // Load the translation group if not loaded
         $this->loadGroup($namespace, $group, $locale);
-        
+
         // Try to get translation
         $line = $this->getLine($namespace, $group, $item, $locale);
-        
+
         // Try fallback locale if not found
         if ($line === null && $locale !== $this->fallbackLocale) {
             $this->loadGroup($namespace, $group, $this->fallbackLocale);
             $line = $this->getLine($namespace, $group, $item, $this->fallbackLocale);
         }
-        
+
         // Return key if translation not found
         if ($line === null) {
             $this->trackMissingTranslation($key, $locale);
             return $key;
         }
-        
+
         // Format message with replacements
         return $this->formatter->format($line, $replace, $locale);
     }
@@ -111,21 +111,21 @@ final class Translator
     public function choice(string $key, int|float $count, array $replace = [], ?string $locale = null): string
     {
         $locale = $locale ?? $this->locale;
-        
+
         // Get the translation line
         $line = $this->trans($key, $replace, $locale);
-        
+
         // If it's the key itself (not found), return it
         if ($line === $key) {
             return $key;
         }
-        
+
         // Apply pluralization
         $pluralized = $this->pluralizer->choose($line, $count, $locale);
-        
+
         // Replace :count placeholder
         $replace['count'] = $count;
-        
+
         return $this->formatter->format($pluralized, $replace, $locale);
     }
 
@@ -136,9 +136,9 @@ final class Translator
     {
         $locale = $locale ?? $this->locale;
         [$namespace, $group, $item] = $this->parseKey($key);
-        
+
         $this->loadGroup($namespace, $group, $locale);
-        
+
         return $this->getLine($namespace, $group, $item, $locale) !== null;
     }
 
@@ -214,12 +214,12 @@ final class Translator
             $namespace = null;
             $rest = $key;
         }
-        
+
         // Split group and item (group.item)
         $segments = explode('.', $rest, 2);
         $group = $segments[0];
         $item = $segments[1] ?? '';
-        
+
         return [$namespace, $group, $item];
     }
 
@@ -229,19 +229,19 @@ final class Translator
     private function loadGroup(?string $namespace, string $group, string $locale): void
     {
         $cacheKey = $this->getCacheKey($namespace, $group, $locale);
-        
+
         if (isset($this->loadedNamespaces[$cacheKey])) {
             return;
         }
-        
+
         foreach ($this->loaders as $loader) {
             $messages = $loader->load($locale, $group, $namespace);
-            
+
             if (!empty($messages)) {
                 $this->mergeMessages($namespace, $group, $locale, $messages);
             }
         }
-        
+
         $this->loadedNamespaces[$cacheKey] = true;
     }
 
@@ -251,26 +251,26 @@ final class Translator
     private function getLine(?string $namespace, string $group, string $item, string $locale): ?string
     {
         $cacheKey = $this->getCacheKey($namespace, $group, $locale);
-        
+
         if (!isset($this->messages[$cacheKey])) {
             return null;
         }
-        
+
         if ($item === '') {
             return null;
         }
-        
+
         // Support nested keys with dot notation
         $segments = explode('.', $item);
         $array = $this->messages[$cacheKey];
-        
+
         foreach ($segments as $segment) {
             if (!is_array($array) || !isset($array[$segment])) {
                 return null;
             }
             $array = $array[$segment];
         }
-        
+
         return is_string($array) ? $array : null;
     }
 
@@ -282,12 +282,12 @@ final class Translator
     private function mergeMessages(?string $namespace, string $group, string $locale, array $messages): void
     {
         $cacheKey = $this->getCacheKey($namespace, $group, $locale);
-        
+
         if (!isset($this->messages[$cacheKey])) {
             $this->messages[$cacheKey] = [];
         }
-        
-        $this->messages[$cacheKey] = array_merge($this->messages[$cacheKey], $messages);
+
+        $this->messages[$cacheKey] = array_replace_recursive($this->messages[$cacheKey], $messages);
     }
 
     /**
