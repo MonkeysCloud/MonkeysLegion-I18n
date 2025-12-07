@@ -1,0 +1,28 @@
+parameters:
+    level: 9
+    paths:
+        - src
+    excludePaths:
+        - src/Console/TranslationCommand.php
+        - tests
+    
+    ignoreErrors:
+        # Superglobals are mixed by nature
+        - '#Parameter .* expects string, mixed given#'
+        
+        # PDO methods return mixed/false
+        - '#Cannot call method .* on PDOStatement\|false#'
+        - '#Cannot access offset .* on mixed#'
+        
+        # Array type widening from untyped sources (require, json_decode)
+        - '#should return array<string, mixed> but returns array<mixed, mixed>#'
+        
+        # String casting from validated sources
+        - '#Cannot cast mixed to (string|int)#'
+        
+        # Properties that are written but used by external code
+        - '#Property .* is never read, only written#'
+        
+        # Middleware has no standard interface
+        - '#Method .* has (no return type specified|parameter .* with no type specified)#'
+        - '#Call to an undefined method object::#'
