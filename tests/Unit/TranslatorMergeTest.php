@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MonkeysLegion\I18n\Tests\Unit;
 
-use MonkeysLegion\I18n\Contracts\LoaderInterface;
+use MonkeysLegion\I18n\Contract\LoaderInterface;
 use MonkeysLegion\I18n\Translator;
 use PHPUnit\Framework\TestCase;
 

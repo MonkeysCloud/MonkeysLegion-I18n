@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace MonkeysLegion\I18n\Detectors;
 
-use MonkeysLegion\I18n\Contracts\LocaleDetectorInterface;
+use MonkeysLegion\I18n\Contract\LocaleDetectorInterface;
 
 /**
- * Detects locale from session
+ * Detects locale from session.
  */
 final class SessionDetector implements LocaleDetectorInterface
 {
@@ -24,8 +24,8 @@ final class SessionDetector implements LocaleDetectorInterface
             return null;
         }
 
-        $value = $_SESSION[$this->key] ?? null;
+        $locale = $_SESSION[$this->key] ?? null;
 
-        return is_string($value) ? $value : null;
+        return is_string($locale) && $locale !== '' ? strtolower($locale) : null;
     }
 }

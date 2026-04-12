@@ -4,19 +4,26 @@ declare(strict_types=1);
 
 namespace MonkeysLegion\I18n;
 
-use MonkeysLegion\I18n\Contracts\LoaderInterface;
-use MonkeysLegion\I18n\Contracts\MessageFormatterInterface;
-use MonkeysLegion\I18n\Exceptions\TranslationNotFoundException;
+use MonkeysLegion\I18n\Contract\LoaderInterface;
+use MonkeysLegion\I18n\Contract\MessageFormatterInterface;
+use MonkeysLegion\I18n\Enum\PluralCategory;
+use MonkeysLegion\I18n\Event\LocaleChangedEvent;
+use MonkeysLegion\I18n\Exceptions\InvalidLocaleException;
 
 /**
- * Production-ready Translator with caching, pluralization, and namespacing
+ * Production-ready Translator with caching, pluralization, and namespacing.
+ *
+ * Uses PHP 8.4 property hooks for locale management with built-in validation.
  */
 final class Translator
 {
-    private string $locale;
-    private string $fallbackLocale;
+    // ── Locale regex ──────────────────────────────────────────────
 
-    /** @var LoaderInterface[] */
+    private const string LOCALE_PATTERN = '/^[a-z]{2,3}(_[A-Z]{2})?$/';
+
+    // ── Properties ────────────────────────────────────────────────
+
+    /** @var list<LoaderInterface> */
     private array $loaders = [];
 
     /** @var array<string, array<string, mixed>> */
@@ -28,7 +35,7 @@ final class Translator
     private MessageFormatterInterface $formatter;
     private Pluralizer $pluralizer;
 
-    /** @var array<string> Missing translation keys for debugging */
+    /** @var list<string> Missing translation keys for debugging */
     private array $missingTranslations = [];
 
     private bool $trackMissing = false;
@@ -36,20 +43,49 @@ final class Translator
     /** @var array<string, string> Namespace to path mapping */
     private array $namespaces = [];
 
+    /** @var callable|null Event dispatcher callback */
+    private $eventDispatcher = null;
+
+    // ── Locale with property hooks ────────────────────────────────
+
+    public string $locale {
+        set(string $value) {
+            $this->validateLocale($value);
+            $old = $this->locale ?? $value;
+            $this->locale = $value;
+            if (isset($old) && $old !== $value && $this->eventDispatcher !== null) {
+                ($this->eventDispatcher)(new LocaleChangedEvent($old, $value));
+            }
+        }
+    }
+
+    public string $fallbackLocale {
+        set(string $value) {
+            $this->validateLocale($value);
+            $this->fallbackLocale = $value;
+        }
+    }
+
+    // ── Constructor ───────────────────────────────────────────────
+
     public function __construct(
         string $locale,
         string $fallbackLocale = 'en',
         ?MessageFormatterInterface $formatter = null,
-        ?Pluralizer $pluralizer = null
+        ?Pluralizer $pluralizer = null,
     ) {
+        $this->validateLocale($locale);
+        $this->validateLocale($fallbackLocale);
         $this->locale = $locale;
         $this->fallbackLocale = $fallbackLocale;
         $this->formatter = $formatter ?? new MessageFormatter();
         $this->pluralizer = $pluralizer ?? new Pluralizer();
     }
 
+    // ── Public API ────────────────────────────────────────────────
+
     /**
-     * Add a translation loader
+     * Add a translation loader.
      */
     public function addLoader(LoaderInterface $loader): void
     {
@@ -57,7 +93,7 @@ final class Translator
     }
 
     /**
-     * Register a namespace for translations (e.g., 'monkeysmail' => '/path/to/lang')
+     * Register a namespace for translations.
      */
     public function addNamespace(string $namespace, string $path): void
     {
@@ -65,11 +101,21 @@ final class Translator
     }
 
     /**
-     * Translate a key with optional replacements
-     * 
-     * @param string $key Translation key (supports dot notation and namespaces)
+     * Set an event dispatcher callback.
+     *
+     * @param callable(LocaleChangedEvent): void $dispatcher
+     */
+    public function setEventDispatcher(callable $dispatcher): void
+    {
+        $this->eventDispatcher = $dispatcher;
+    }
+
+    /**
+     * Translate a key with optional replacements.
+     *
+     * @param string               $key     Translation key (supports dot notation and namespaces)
      * @param array<string, mixed> $replace Replacement values
-     * @param string|null $locale Override locale
+     * @param string|null          $locale  Override locale
      */
     public function trans(string $key, array $replace = [], ?string $locale = null): string
     {
@@ -101,12 +147,12 @@ final class Translator
     }
 
     /**
-     * Get translation with pluralization
-     * 
-     * @param string $key Translation key
-     * @param int|float $count Count for pluralization
+     * Get translation with pluralization.
+     *
+     * @param string               $key     Translation key
+     * @param int|float            $count   Count for pluralization
      * @param array<string, mixed> $replace Additional replacements
-     * @param string|null $locale Override locale
+     * @param string|null          $locale  Override locale
      */
     public function choice(string $key, int|float $count, array $replace = [], ?string $locale = null): string
     {
@@ -130,7 +176,7 @@ final class Translator
     }
 
     /**
-     * Check if translation exists
+     * Check if translation exists.
      */
     public function has(string $key, ?string $locale = null): bool
     {
@@ -143,7 +189,7 @@ final class Translator
     }
 
     /**
-     * Get current locale
+     * Get current locale.
      */
     public function getLocale(): string
     {
@@ -151,7 +197,7 @@ final class Translator
     }
 
     /**
-     * Set current locale
+     * Set current locale.
      */
     public function setLocale(string $locale): void
     {
@@ -159,7 +205,7 @@ final class Translator
     }
 
     /**
-     * Get fallback locale
+     * Get fallback locale.
      */
     public function getFallbackLocale(): string
     {
@@ -167,7 +213,7 @@ final class Translator
     }
 
     /**
-     * Set fallback locale
+     * Set fallback locale.
      */
     public function setFallbackLocale(string $locale): void
     {
@@ -175,7 +221,7 @@ final class Translator
     }
 
     /**
-     * Enable/disable missing translation tracking
+     * Enable/disable missing translation tracking.
      */
     public function setTrackMissing(bool $track): void
     {
@@ -183,9 +229,9 @@ final class Translator
     }
 
     /**
-     * Get missing translations
-     * 
-     * @return array<string>
+     * Get missing translations.
+     *
+     * @return list<string>
      */
     public function getMissingTranslations(): array
     {
@@ -193,7 +239,7 @@ final class Translator
     }
 
     /**
-     * Clear missing translations log
+     * Clear missing translations log.
      */
     public function clearMissingTranslations(): void
     {
@@ -201,14 +247,52 @@ final class Translator
     }
 
     /**
-     * Parse a key into namespace, group, and item
-     * 
+     * Pre-load all groups for a locale (warm-up).
+     *
+     * @param string               $locale   Locale to warm up
+     * @param list<string>         $groups   Groups to pre-load
+     * @param list<string|null>    $namespaces Namespaces (null = default)
+     */
+    public function warmUp(string $locale, array $groups, array $namespaces = [null]): void
+    {
+        foreach ($namespaces as $namespace) {
+            foreach ($groups as $group) {
+                $this->loadGroup($namespace, $group, $locale);
+            }
+        }
+    }
+
+    /**
+     * Get all loaded groups for debugging.
+     *
+     * @return list<string>
+     */
+    public function getLoadedGroups(): array
+    {
+        return array_keys($this->loadedNamespaces);
+    }
+
+    // ── Private methods ───────────────────────────────────────────
+
+    /**
+     * Validate locale code.
+     */
+    private function validateLocale(string $locale): void
+    {
+        if (!preg_match(self::LOCALE_PATTERN, $locale)) {
+            throw new InvalidLocaleException($locale);
+        }
+    }
+
+    /**
+     * Parse a key into namespace, group, and item.
+     *
      * @return array{0: string|null, 1: string, 2: string}
      */
     private function parseKey(string $key): array
     {
         // Check for namespace (vendor::group.item)
-        if (strpos($key, '::') !== false) {
+        if (str_contains($key, '::')) {
             [$namespace, $rest] = explode('::', $key, 2);
         } else {
             $namespace = null;
@@ -224,7 +308,7 @@ final class Translator
     }
 
     /**
-     * Load a translation group
+     * Load a translation group.
      */
     private function loadGroup(?string $namespace, string $group, string $locale): void
     {
@@ -246,7 +330,7 @@ final class Translator
     }
 
     /**
-     * Get a translation line
+     * Get a translation line.
      */
     private function getLine(?string $namespace, string $group, string $item, string $locale): ?string
     {
@@ -275,8 +359,8 @@ final class Translator
     }
 
     /**
-     * Merge messages into cache
-     * 
+     * Merge messages into cache.
+     *
      * @param array<string, mixed> $messages
      */
     private function mergeMessages(?string $namespace, string $group, string $locale, array $messages): void
@@ -291,15 +375,15 @@ final class Translator
     }
 
     /**
-     * Get cache key for a translation group
+     * Get cache key for a translation group.
      */
     private function getCacheKey(?string $namespace, string $group, string $locale): string
     {
-        return $namespace ? "{$namespace}::{$group}.{$locale}" : "{$group}.{$locale}";
+        return $namespace !== null ? "{$namespace}::{$group}.{$locale}" : "{$group}.{$locale}";
     }
 
     /**
-     * Track missing translation
+     * Track missing translation.
      */
     private function trackMissingTranslation(string $key, string $locale): void
     {

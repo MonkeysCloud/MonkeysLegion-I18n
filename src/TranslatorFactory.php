@@ -6,23 +6,26 @@ namespace MonkeysLegion\I18n;
 
 use MonkeysLegion\I18n\Loaders\FileLoader;
 use MonkeysLegion\I18n\Loaders\CacheLoader;
+use MonkeysLegion\I18n\Loaders\CompiledLoader;
 use MonkeysLegion\I18n\Loaders\DatabaseLoader;
 use MonkeysLegion\I18n\Detectors\UrlDetector;
 use MonkeysLegion\I18n\Detectors\SessionDetector;
 use MonkeysLegion\I18n\Detectors\CookieDetector;
 use MonkeysLegion\I18n\Detectors\HeaderDetector;
 use MonkeysLegion\I18n\Detectors\QueryDetector;
+
 use Psr\SimpleCache\CacheInterface;
+
 use PDO;
 
 /**
- * Factory for creating configured Translator instances
+ * Factory for creating configured Translator instances.
  */
 final class TranslatorFactory
 {
     /**
-     * Create a translator with common configuration
-     * 
+     * Create a translator with common configuration.
+     *
      * @param array{
      *   locale?: string,
      *   fallback?: string,
@@ -30,23 +33,24 @@ final class TranslatorFactory
      *   cache?: CacheInterface|null,
      *   cache_ttl?: int,
      *   pdo?: PDO|null,
-     *   supported_locales?: array<string>,
-     *   detectors?: array<string>,
+     *   supported_locales?: list<string>,
+     *   detectors?: list<string>,
      *   namespaces?: array<string, string>,
-     *   track_missing?: bool
+     *   track_missing?: bool,
+     *   compiled_path?: string|null
      * } $config
      */
     public static function create(array $config = []): Translator
     {
-        // Extract configuration
-        $locale = $config['locale'] ?? 'en';
-        $fallback = $config['fallback'] ?? 'en';
-        $path = $config['path'] ?? 'resources/lang';
-        $cache = $config['cache'] ?? null;
-        $cacheTtl = $config['cache_ttl'] ?? 3600;
-        $pdo = $config['pdo'] ?? null;
-        $namespaces = $config['namespaces'] ?? [];
-        $trackMissing = $config['track_missing'] ?? false;
+        $locale        = $config['locale'] ?? 'en';
+        $fallback      = $config['fallback'] ?? 'en';
+        $path          = $config['path'] ?? 'resources/lang';
+        $cache         = $config['cache'] ?? null;
+        $cacheTtl      = $config['cache_ttl'] ?? 3600;
+        $pdo           = $config['pdo'] ?? null;
+        $namespaces    = $config['namespaces'] ?? [];
+        $trackMissing  = $config['track_missing'] ?? false;
+        $compiledPath  = $config['compiled_path'] ?? null;
 
         // Create translator
         $translator = new Translator($locale, $fallback);
@@ -60,12 +64,17 @@ final class TranslatorFactory
             $translator->addNamespace($namespace, $namespacePath);
         }
 
-        // Wrap with cache if available
-        if ($cache instanceof CacheInterface) {
-            $fileLoader = new CacheLoader($fileLoader, $cache, $cacheTtl);
+        // Use compiled loader for production
+        if ($compiledPath !== null) {
+            $compiledLoader = new CompiledLoader($fileLoader, $compiledPath);
+            $translator->addLoader($compiledLoader);
+        } elseif ($cache instanceof CacheInterface) {
+            // Wrap with cache
+            $cachedFileLoader = new CacheLoader($fileLoader, $cache, $cacheTtl);
+            $translator->addLoader($cachedFileLoader);
+        } else {
+            $translator->addLoader($fileLoader);
         }
-
-        $translator->addLoader($fileLoader);
 
         // Add database loader if PDO provided
         if ($pdo instanceof PDO) {
@@ -87,33 +96,32 @@ final class TranslatorFactory
     }
 
     /**
-     * Create a locale manager with detectors
-     * 
+     * Create a locale manager with detectors.
+     *
      * @param array{
      *   default?: string,
      *   fallback?: string,
-     *   supported?: array<string>,
-     *   detectors?: array<string>
+     *   supported?: list<string>,
+     *   detectors?: list<string>
      * } $config
      */
     public static function createLocaleManager(array $config = []): LocaleManager
     {
-        $default = $config['default'] ?? 'en';
-        $fallback = $config['fallback'] ?? 'en';
+        $default   = $config['default'] ?? 'en';
+        $fallback  = $config['fallback'] ?? 'en';
         $supported = $config['supported'] ?? ['en'];
         $detectors = $config['detectors'] ?? ['url', 'session', 'cookie', 'header'];
 
         $manager = new LocaleManager($default, $supported, $fallback);
 
-        // Add detectors in priority order
         foreach ($detectors as $detector) {
             match ($detector) {
-                'url' => $manager->addDetector(new UrlDetector()),
-                'session' => $manager->addDetector(new SessionDetector()),
-                'cookie' => $manager->addDetector(new CookieDetector()),
-                'header' => $manager->addDetector(new HeaderDetector()),
-                'query' => $manager->addDetector(new QueryDetector()),
-                default => null
+                'url'       => $manager->addDetector(new UrlDetector()),
+                'session'   => $manager->addDetector(new SessionDetector()),
+                'cookie'    => $manager->addDetector(new CookieDetector()),
+                'header'    => $manager->addDetector(new HeaderDetector()),
+                'query'     => $manager->addDetector(new QueryDetector()),
+                default     => null,
             };
         }
 
@@ -121,27 +129,43 @@ final class TranslatorFactory
     }
 
     /**
-     * Create a complete I18n system with translator and locale manager
-     * 
+     * Create a complete I18n system with translator and locale manager.
+     *
      * @param array<string, mixed> $config
      *
      * @return array{translator: Translator, manager: LocaleManager}
      */
     public static function createSystem(array $config = []): array
     {
-        /** @var array{default?: string, fallback?: string, supported?: array<string>, detectors?: array<string>} $localeConfig */
+        /** @var array{default?: string, fallback?: string, supported?: list<string>, detectors?: list<string>} $localeConfig */
         $localeConfig = $config;
         $manager = self::createLocaleManager($localeConfig);
         $locale = $manager->detectLocale();
 
         $config['locale'] = $locale;
-        /** @var array{locale?: string, fallback?: string, path?: string, cache?: \Psr\SimpleCache\CacheInterface|null, cache_ttl?: int, pdo?: \PDO|null, supported_locales?: array<string>, detectors?: array<string>, ...} $translatorConfig */
+        /** @var array{locale?: string, fallback?: string, path?: string, cache?: CacheInterface|null, cache_ttl?: int, pdo?: PDO|null, supported_locales?: list<string>, namespaces?: array<string, string>, track_missing?: bool, compiled_path?: string|null} $translatorConfig */
         $translatorConfig = $config;
         $translator = self::create($translatorConfig);
 
         return [
             'translator' => $translator,
-            'manager' => $manager,
+            'manager'    => $manager,
         ];
+    }
+
+    /**
+     * Create number formatter.
+     */
+    public static function createNumberFormatter(): NumberFormatter
+    {
+        return new NumberFormatter();
+    }
+
+    /**
+     * Create date formatter.
+     */
+    public static function createDateFormatter(): DateFormatter
+    {
+        return new DateFormatter();
     }
 }
