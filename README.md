@@ -48,6 +48,7 @@ Translate, pluralize, format numbers/dates/currencies, and manage locales with s
   - [DatabaseLoader](#databaseloader)
   - [CacheLoader](#cacheloader)
   - [CompiledLoader](#compiledloader)
+  - [MlcLoader](#mlcloader)
 - [Middleware](#middleware)
   - [LocaleMiddleware](#localemiddleware)
   - [LocaleUrlMiddleware](#localeurlmiddleware)
@@ -803,6 +804,56 @@ $compiled->invalidate('en');
 // Auto opcache invalidation
 ```
 
+### MlcLoader
+
+Zero-dependency alternative to YAML — uses a simple key=value format.
+
+```php
+use MonkeysLegion\I18n\Loaders\MlcLoader;
+
+$loader = new MlcLoader('/path/to/lang');
+$messages = $loader->load('en', 'messages');
+// Loads from /path/to/lang/en/messages.mlc
+```
+
+**MLC file format (flat — one group per file):**
+
+```ini
+# resources/lang/en/messages.mlc
+
+# Comments start with # or ;
+welcome = Welcome!
+greeting = Hello, :name!
+farewell = "Goodbye, :NAME!"
+
+# Dot notation creates nested arrays
+nested.key = Nested value
+nested.deep.value = Deep nested value
+
+# Escape sequences in double-quoted values
+multiline = "Line one\nLine two"
+```
+
+**MLC file format (sectioned — multiple groups per file):**
+
+```ini
+# resources/lang/es.mlc
+
+[messages]
+welcome = ¡Bienvenido!
+greeting = ¡Hola, :name!
+
+[validation]
+required = El campo :field es obligatorio.
+email = Ingrese un correo electrónico válido.
+```
+
+**Why MLC over YAML?**
+- Zero external dependencies (no `symfony/yaml`)
+- Simpler syntax, less error-prone
+- Translators don't need to learn YAML indentation rules
+- Same security hardening as FileLoader
+
 ---
 
 ## Middleware
@@ -1303,8 +1354,8 @@ vendor/bin/phpunit --filter="translator_translates_basic_key"
 
 ### Test Coverage
 
-- **127 tests**, **222 assertions**
-- Covers: Translator, Pluralizer, MessageFormatter, NumberFormatter, DateFormatter, LocaleManager, LocaleInfo, FileLoader, CompiledLoader, Enums, Attributes, Events, Factory
+- **139 tests**, **250+ assertions**
+- Covers: Translator, Pluralizer, MessageFormatter, NumberFormatter, DateFormatter, LocaleManager, LocaleInfo, FileLoader, MlcLoader, CompiledLoader, Enums, Attributes, Events, Factory, CLI
 
 ---
 

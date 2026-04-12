@@ -13,6 +13,8 @@ use MonkeysLegion\I18n\Exceptions\InvalidLocaleException;
 use MonkeysLegion\I18n\Loaders\CompiledLoader;
 use MonkeysLegion\I18n\Loaders\DatabaseLoader;
 use MonkeysLegion\I18n\Loaders\FileLoader;
+use MonkeysLegion\I18n\Loaders\MlcLoader;
+use MonkeysLegion\I18n\Console\Cli\I18nCliCommand;
 use MonkeysLegion\I18n\LocaleManager;
 use MonkeysLegion\I18n\MessageFormatter;
 use MonkeysLegion\I18n\NumberFormatter;
@@ -39,10 +41,13 @@ use DateTimeImmutable;
 #[CoversClass(LocaleInfo::class)]
 #[CoversClass(FileLoader::class)]
 #[CoversClass(CompiledLoader::class)]
+#[CoversClass(MlcLoader::class)]
+#[CoversClass(I18nCliCommand::class)]
 final class I18nV2Test extends TestCase
 {
     private string $fixturesPath;
     private string $compilePath;
+    private string $mlcPath;
 
     // ── Setup / teardown ──────────────────────────────────────────
 
@@ -55,6 +60,33 @@ final class I18nV2Test extends TestCase
         @mkdir($this->fixturesPath . '/en', 0755, true);
         @mkdir($this->fixturesPath . '/es', 0755, true);
         @mkdir($this->compilePath, 0755, true);
+
+        // MLC fixtures
+        $this->mlcPath = __DIR__ . '/../fixtures/v2mlc';
+        @mkdir($this->mlcPath . '/en', 0755, true);
+        @mkdir($this->mlcPath . '/es', 0755, true);
+
+        // English MLC file (flat)
+        file_put_contents(
+            $this->mlcPath . '/en/messages.mlc',
+            "# English translations\n"
+            . "welcome = Welcome!\n"
+            . "greeting = Hello, :name!\n"
+            . 'farewell = "Goodbye, :NAME!"' . "\n"
+            . "nested.key = Nested value\n"
+            . "nested.deep.value = Deep nested\n",
+        );
+
+        // Sectioned MLC file
+        file_put_contents(
+            $this->mlcPath . '/es.mlc',
+            "[messages]\n"
+            . "welcome = ¡Bienvenido!\n"
+            . "greeting = ¡Hola, :name!\n"
+            . "\n"
+            . "[validation]\n"
+            . 'required = El campo :field es obligatorio.' . "\n",
+        );
 
         // English translations
         file_put_contents(
@@ -93,6 +125,7 @@ final class I18nV2Test extends TestCase
     {
         $this->removeDirectory($this->fixturesPath);
         $this->removeDirectory($this->compilePath);
+        $this->removeDirectory($this->mlcPath);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1004,6 +1037,153 @@ final class I18nV2Test extends TestCase
     {
         $attr = new \MonkeysLegion\I18n\Attribute\Locale(validated: false);
         $this->assertFalse($attr->validated);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MlcLoader
+    // ═══════════════════════════════════════════════════════════════
+
+    #[Test]
+    public function mlc_loader_loads_flat_file(): void
+    {
+        $loader = new MlcLoader($this->mlcPath);
+        $messages = $loader->load('en', 'messages');
+
+        $this->assertSame('Welcome!', $messages['welcome']);
+        $this->assertSame('Hello, :name!', $messages['greeting']);
+    }
+
+    #[Test]
+    public function mlc_loader_handles_quoted_values(): void
+    {
+        $loader = new MlcLoader($this->mlcPath);
+        $messages = $loader->load('en', 'messages');
+
+        $this->assertSame('Goodbye, :NAME!', $messages['farewell']);
+    }
+
+    #[Test]
+    public function mlc_loader_handles_dot_notation(): void
+    {
+        $loader = new MlcLoader($this->mlcPath);
+        $messages = $loader->load('en', 'messages');
+
+        $this->assertIsArray($messages['nested']);
+        $this->assertSame('Nested value', $messages['nested']['key']);
+        $this->assertSame('Deep nested', $messages['nested']['deep']['value']);
+    }
+
+    #[Test]
+    public function mlc_loader_loads_sectioned_file(): void
+    {
+        $loader = new MlcLoader($this->mlcPath);
+
+        $messages = $loader->load('es', 'messages');
+        $this->assertSame('¡Bienvenido!', $messages['welcome']);
+
+        $validation = $loader->load('es', 'validation');
+        $this->assertSame('El campo :field es obligatorio.', $validation['required']);
+    }
+
+    #[Test]
+    public function mlc_loader_returns_empty_for_missing_file(): void
+    {
+        $loader = new MlcLoader($this->mlcPath);
+        $result = $loader->load('en', 'nonexistent');
+        $this->assertSame([], $result);
+    }
+
+    #[Test]
+    public function mlc_loader_rejects_path_traversal(): void
+    {
+        $loader = new MlcLoader($this->mlcPath);
+
+        $this->expectException(\MonkeysLegion\I18n\Exceptions\LoaderException::class);
+        $loader->load('../etc', 'passwd');
+    }
+
+    #[Test]
+    public function mlc_loader_rejects_null_byte(): void
+    {
+        $loader = new MlcLoader($this->mlcPath);
+
+        $this->expectException(\MonkeysLegion\I18n\Exceptions\LoaderException::class);
+        $loader->load('en', "messages\0");
+    }
+
+    #[Test]
+    public function mlc_loader_supports_namespaces(): void
+    {
+        $loader = new MlcLoader('/tmp/nonexistent');
+        $loader->addNamespace('billing', $this->mlcPath);
+
+        $messages = $loader->load('en', 'messages', 'billing');
+        $this->assertSame('Welcome!', $messages['welcome']);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // I18nCliCommand
+    // ═══════════════════════════════════════════════════════════════
+
+    #[Test]
+    public function cli_command_has_all_commands(): void
+    {
+        $t = $this->createTranslator();
+        $cli = new I18nCliCommand($t, $this->fixturesPath);
+
+        $commands = $cli->getCommands();
+        $this->assertArrayHasKey('i18n:extract', $commands);
+        $this->assertArrayHasKey('i18n:missing', $commands);
+        $this->assertArrayHasKey('i18n:compare', $commands);
+        $this->assertArrayHasKey('i18n:export', $commands);
+        $this->assertArrayHasKey('i18n:compile', $commands);
+        $this->assertArrayHasKey('i18n:stats', $commands);
+    }
+
+    #[Test]
+    public function cli_command_unknown_returns_1(): void
+    {
+        $t = $this->createTranslator();
+        $cli = new I18nCliCommand($t, $this->fixturesPath);
+
+        ob_start();
+        $code = $cli->run('i18n:nonexistent');
+        ob_end_clean();
+
+        $this->assertSame(1, $code);
+    }
+
+    #[Test]
+    public function cli_command_stats_returns_0(): void
+    {
+        $t = $this->createTranslator();
+        $cli = new I18nCliCommand($t, $this->fixturesPath);
+
+        ob_start();
+        $code = $cli->run('i18n:stats');
+        $output = ob_get_clean();
+
+        $this->assertSame(0, $code);
+        $this->assertStringContainsString('en', $output);
+    }
+
+    #[Test]
+    public function cli_command_compile_returns_0(): void
+    {
+        $t = $this->createTranslator();
+        $cli = new I18nCliCommand($t, $this->fixturesPath);
+
+        ob_start();
+        $code = $cli->run('i18n:compile', [
+            'locale' => 'en',
+            'source' => $this->fixturesPath,
+            'output' => $this->compilePath,
+        ]);
+        ob_end_clean();
+
+        $this->assertSame(0, $code);
+        // Verify compiled file exists
+        $this->assertFileExists($this->compilePath . '/en.compiled.php');
     }
 
     // ═══════════════════════════════════════════════════════════════
