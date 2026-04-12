@@ -42,4 +42,12 @@ enum Direction: string
     {
         return "dir=\"{$this->value}\"";
     }
+
+    /**
+     * Check if direction is RTL.
+     */
+    public function isRtl(): bool
+    {
+        return $this === self::RTL;
+    }
 }

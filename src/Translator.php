@@ -272,6 +272,24 @@ final class Translator
         return array_keys($this->loadedNamespaces);
     }
 
+    /**
+     * Get all available keys for a locale.
+     *
+     * @return list<string>
+     */
+    public function allKeys(string $locale, string $group, ?string $namespace = null): array
+    {
+        $this->loadGroup($namespace, $group, $locale);
+
+        $cacheKey = $this->getCacheKey($namespace, $group, $locale);
+
+        if (!isset($this->messages[$cacheKey])) {
+            return [];
+        }
+
+        return $this->flattenKeys($this->messages[$cacheKey]);
+    }
+
     // ── Private methods ───────────────────────────────────────────
 
     /**
@@ -390,5 +408,28 @@ final class Translator
         if ($this->trackMissing) {
             $this->missingTranslations[] = "{$locale}.{$key}";
         }
+    }
+
+    /**
+     * Flatten a nested array into dot-notation keys.
+     *
+     * @param array<string, mixed> $array
+     * @return list<string>
+     */
+    private function flattenKeys(array $array, string $prefix = ''): array
+    {
+        $keys = [];
+
+        foreach ($array as $key => $value) {
+            $fullKey = $prefix !== '' ? "{$prefix}.{$key}" : (string) $key;
+
+            if (is_array($value)) {
+                $keys = array_merge($keys, $this->flattenKeys($value, $fullKey));
+            } else {
+                $keys[] = $fullKey;
+            }
+        }
+
+        return $keys;
     }
 }
