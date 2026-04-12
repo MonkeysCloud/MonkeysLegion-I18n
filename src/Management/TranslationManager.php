@@ -16,6 +16,8 @@ use MonkeysLegion\I18n\Translator;
  * - Import file translations to database
  * - Sync between sources
  *
+ * Supports: MySQL, MariaDB, PostgreSQL, SQLite.
+ *
  * Security:
  * - Table name validated against regex pattern
  * - All queries use parameterized statements
@@ -33,6 +35,10 @@ final class TranslationManager
     private readonly Translator $translator;
     private readonly string $filePath;
     private readonly string $tableName;
+    private readonly string $driver;
+
+    /** @var array<string, string> Column quoting per driver */
+    private readonly array $q;
 
     // ── Constructor ───────────────────────────────────────────────
 
@@ -50,10 +56,24 @@ final class TranslationManager
         $this->translator = $translator;
         $this->filePath = rtrim($filePath, DIRECTORY_SEPARATOR);
         $this->tableName = $tableName;
+
+        // Detect driver for cross-database compatibility
+        $this->driver = strtolower($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) ?: 'mysql');
+
+        // Column quoting differs per driver
+        $this->q = match ($this->driver) {
+            'pgsql' => ['q' => '"', 'group' => '"group"', 'key' => '"key"'],
+            'sqlite' => ['q' => '"', 'group' => '"group"', 'key' => '"key"'],
+            default => ['q' => '`', 'group' => '`group`', 'key' => '`key`'],
+        };
     }
 
+    // ── CRUD operations ──────────────────────────────────────────
+
     /**
-     * Add or update a translation in database
+     * Add or update a translation in database.
+     *
+     * Uses UPSERT syntax compatible with MySQL, PostgreSQL, and SQLite.
      */
     public function set(
         string $locale,
@@ -61,31 +81,56 @@ final class TranslationManager
         string $key,
         string $value,
         ?string $namespace = null,
-        string $source = 'admin'
+        string $source = 'admin',
     ): void {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO {$this->tableName} (locale, `group`, namespace, `key`, value, source)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE 
-                value = VALUES(value),
-                source = VALUES(source),
-                updated_at = CURRENT_TIMESTAMP
-        ");
+        $g = $this->q['group'];
+        $k = $this->q['key'];
 
-        $stmt->execute([$locale, $group, $namespace, $key, $value, $source]);
+        $sql = match ($this->driver) {
+            'pgsql' => "
+                INSERT INTO {$this->tableName} (locale, {$g}, namespace, {$k}, value, source)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (locale, {$g}, namespace, {$k})
+                DO UPDATE SET value = EXCLUDED.value,
+                              source = EXCLUDED.source,
+                              updated_at = NOW()
+            ",
+            'sqlite' => "
+                INSERT INTO {$this->tableName} (locale, {$g}, namespace, {$k}, value, source)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (locale, {$g}, namespace, {$k})
+                DO UPDATE SET value = excluded.value,
+                              source = excluded.source,
+                              updated_at = datetime('now')
+            ",
+            default => "
+                INSERT INTO {$this->tableName} (locale, {$g}, namespace, {$k}, value, source)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    value = VALUES(value),
+                    source = VALUES(source),
+                    updated_at = CURRENT_TIMESTAMP
+            ",
+        };
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$locale, $group, $namespace ?? '', $key, $value, $source]);
     }
 
     /**
-     * Get a translation from database
+     * Get a translation from database.
      */
     public function get(
         string $locale,
         string $group,
         string $key,
-        ?string $namespace = null
+        ?string $namespace = null,
     ): ?string {
-        $sql = "SELECT value FROM {$this->tableName} 
-                WHERE locale = ? AND `group` = ? AND `key` = ?";
+        $g = $this->q['group'];
+        $k = $this->q['key'];
+
+        $sql = "SELECT value FROM {$this->tableName}
+                WHERE locale = ? AND {$g} = ? AND {$k} = ?";
 
         $params = [$locale, $group, $key];
 
@@ -93,7 +138,7 @@ final class TranslationManager
             $sql .= " AND namespace = ?";
             $params[] = $namespace;
         } else {
-            $sql .= " AND namespace IS NULL";
+            $sql .= " AND (namespace IS NULL OR namespace = '')";
         }
 
         $stmt = $this->pdo->prepare($sql);
@@ -109,16 +154,19 @@ final class TranslationManager
     }
 
     /**
-     * Delete a translation from database
+     * Delete a translation from database.
      */
     public function delete(
         string $locale,
         string $group,
         string $key,
-        ?string $namespace = null
+        ?string $namespace = null,
     ): bool {
-        $sql = "DELETE FROM {$this->tableName} 
-                WHERE locale = ? AND `group` = ? AND `key` = ?";
+        $g = $this->q['group'];
+        $k = $this->q['key'];
+
+        $sql = "DELETE FROM {$this->tableName}
+                WHERE locale = ? AND {$g} = ? AND {$k} = ?";
 
         $params = [$locale, $group, $key];
 
@@ -126,7 +174,7 @@ final class TranslationManager
             $sql .= " AND namespace = ?";
             $params[] = $namespace;
         } else {
-            $sql .= " AND namespace IS NULL";
+            $sql .= " AND (namespace IS NULL OR namespace = '')";
         }
 
         $stmt = $this->pdo->prepare($sql);
@@ -135,18 +183,23 @@ final class TranslationManager
         return $stmt->rowCount() > 0;
     }
 
+    // ── Group operations ─────────────────────────────────────────
+
     /**
-     * Get all translations for a locale/group from database
+     * Get all translations for a locale/group from database.
      *
      * @return array<string, mixed>
      */
     public function getGroup(
         string $locale,
         string $group,
-        ?string $namespace = null
+        ?string $namespace = null,
     ): array {
-        $sql = "SELECT `key`, value FROM {$this->tableName} 
-                WHERE locale = ? AND `group` = ?";
+        $g = $this->q['group'];
+        $k = $this->q['key'];
+
+        $sql = "SELECT {$k}, value FROM {$this->tableName}
+                WHERE locale = ? AND {$g} = ?";
 
         $params = [$locale, $group];
 
@@ -154,37 +207,41 @@ final class TranslationManager
             $sql .= " AND namespace = ?";
             $params[] = $namespace;
         } else {
-            $sql .= " AND namespace IS NULL";
+            $sql .= " AND (namespace IS NULL OR namespace = '')";
         }
 
-        $sql .= " ORDER BY `key`";
+        $sql .= " ORDER BY {$k}";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
         $translations = [];
+
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             if (!isset($row['key'])) {
                 continue;
             }
 
             $value = $row['value'] ?? '';
-            $this->setNestedValue($translations, (string)$row['key'], (string)$value);
+            $this->setNestedValue($translations, (string) $row['key'], (string) $value);
         }
 
         return $translations;
     }
 
+    // ── Import / Export ──────────────────────────────────────────
+
     /**
-     * Import translations from file to database
+     * Import translations from file to database.
      */
     public function importFromFile(
         string $locale,
         string $group,
-        bool $overwrite = false
+        bool $overwrite = false,
     ): int {
         // Try JSON first
         $jsonFile = $this->filePath . "/{$locale}/{$group}.json";
+
         if (file_exists($jsonFile)) {
             $contents = file_get_contents($jsonFile);
 
@@ -192,18 +249,18 @@ final class TranslationManager
                 return 0;
             }
 
-            $data = json_decode($contents, true);
+            $data = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
 
             if (!is_array($data)) {
                 return 0;
             }
 
-            /** @var array<string, mixed> $data */
             return $this->importArray($locale, $group, $data, 'file_import', $overwrite);
         }
 
         // Try PHP
         $phpFile = $this->filePath . "/{$locale}/{$group}.php";
+
         if (file_exists($phpFile)) {
             $data = require $phpFile;
 
@@ -211,7 +268,16 @@ final class TranslationManager
                 return 0;
             }
 
-            /** @var array<string, mixed> $data */
+            return $this->importArray($locale, $group, $data, 'file_import', $overwrite);
+        }
+
+        // Try MLC
+        $mlcFile = $this->filePath . "/{$locale}/{$group}.mlc";
+
+        if (file_exists($mlcFile)) {
+            $loader = new \MonkeysLegion\I18n\Loaders\MlcLoader($this->filePath);
+            $data = $loader->load($locale, $group);
+
             return $this->importArray($locale, $group, $data, 'file_import', $overwrite);
         }
 
@@ -219,8 +285,8 @@ final class TranslationManager
     }
 
     /**
-     * Import array of translations to database
-     * 
+     * Import array of translations to database.
+     *
      * @param array<string, mixed> $translations
      */
     public function importArray(
@@ -229,7 +295,7 @@ final class TranslationManager
         array $translations,
         string $source = 'import',
         bool $overwrite = false,
-        ?string $namespace = null
+        ?string $namespace = null,
     ): int {
         $flat = $this->flattenArray($translations);
         $count = 0;
@@ -237,26 +303,18 @@ final class TranslationManager
         $this->pdo->beginTransaction();
 
         try {
-            if ($overwrite) {
-                $stmt = $this->pdo->prepare("
-                    INSERT INTO {$this->tableName} (locale, `group`, namespace, `key`, value, source)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE 
-                        value = VALUES(value),
-                        source = VALUES(source),
-                        updated_at = CURRENT_TIMESTAMP
-                ");
-            } else {
-                $stmt = $this->pdo->prepare("
-                    INSERT IGNORE INTO {$this->tableName} (locale, `group`, namespace, `key`, value, source)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ");
-            }
-
             foreach ($flat as $key => $value) {
-                $stmt->execute([$locale, $group, $namespace, $key, $value, $source]);
-                if ($stmt->rowCount() > 0) {
+                if ($overwrite) {
+                    $this->set($locale, $group, $key, $value, $namespace, $source);
                     $count++;
+                } else {
+                    // Check if exists first
+                    $existing = $this->get($locale, $group, $key, $namespace);
+
+                    if ($existing === null) {
+                        $this->set($locale, $group, $key, $value, $namespace, $source);
+                        $count++;
+                    }
                 }
             }
 
@@ -270,61 +328,67 @@ final class TranslationManager
     }
 
     /**
-     * Export database translations to file
+     * Export database translations to file.
      */
     public function exportToFile(
         string $locale,
         string $group,
         string $format = 'json',
-        ?string $namespace = null
+        ?string $namespace = null,
     ): string {
         $translations = $this->getGroup($locale, $group, $namespace);
 
         $directory = $this->filePath . "/{$locale}";
+
         if (!is_dir($directory)) {
             mkdir($directory, 0755, true);
         }
 
-        $filename = $directory . "/{$group}." . $format;
+        $filename = $directory . "/{$group}.{$format}";
 
         if ($format === 'json') {
             file_put_contents(
                 $filename,
-                json_encode($translations, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+                json_encode($translations, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             );
         } elseif ($format === 'php') {
             file_put_contents(
                 $filename,
-                "<?php\n\nreturn " . var_export($translations, true) . ";\n"
+                "<?php\n\nreturn " . var_export($translations, true) . ";\n",
             );
         }
 
         return $filename;
     }
 
+    // ── Sync ─────────────────────────────────────────────────────
+
     /**
-     * Sync translations between file and database
-     * 
+     * Sync translations between file and database.
+     *
      * @param string $direction 'file_to_db' or 'db_to_file'
      */
     public function sync(
         string $locale,
         string $group,
         string $direction = 'file_to_db',
-        bool $overwrite = false
+        bool $overwrite = false,
     ): int {
         if ($direction === 'file_to_db') {
             return $this->importFromFile($locale, $group, $overwrite);
         } else {
             $this->exportToFile($locale, $group, 'json');
+
             return count($this->getGroup($locale, $group));
         }
     }
 
+    // ── Query operations ─────────────────────────────────────────
+
     /**
-     * Get all translations (both file and database)
-     * Database translations override file translations
-     * 
+     * Get all translations (both file and database).
+     * Database translations override file translations.
+     *
      * @return array<string, mixed>
      */
     public function getAllMerged(string $locale, string $group): array
@@ -333,6 +397,7 @@ final class TranslationManager
         $fileTranslations = [];
 
         $jsonFile = $this->filePath . "/{$locale}/{$group}.json";
+
         if (file_exists($jsonFile)) {
             $contents = file_get_contents($jsonFile);
 
@@ -342,6 +407,7 @@ final class TranslationManager
             }
         } else {
             $phpFile = $this->filePath . "/{$locale}/{$group}.php";
+
             if (file_exists($phpFile)) {
                 $data = require $phpFile;
                 $fileTranslations = is_array($data) ? $data : [];
@@ -356,15 +422,16 @@ final class TranslationManager
     }
 
     /**
-     * Find missing translations in database compared to files
-     * 
-     * @return array<string>
+     * Find missing translations in database compared to files.
+     *
+     * @return list<string>
      */
     public function findMissing(string $locale, string $group): array
     {
         $fileTranslations = [];
 
         $jsonFile = $this->filePath . "/{$locale}/{$group}.json";
+
         if (file_exists($jsonFile)) {
             $contents = file_get_contents($jsonFile);
 
@@ -379,12 +446,12 @@ final class TranslationManager
         $fileKeys = array_keys($this->flattenArray($fileTranslations));
         $dbKeys = array_keys($this->flattenArray($dbTranslations));
 
-        return array_diff($fileKeys, $dbKeys);
+        return array_values(array_diff($fileKeys, $dbKeys));
     }
 
     /**
-     * Get statistics
-     * 
+     * Get statistics.
+     *
      * @return array{
      *   total: int,
      *   by_locale: array<string, int>,
@@ -394,64 +461,66 @@ final class TranslationManager
      */
     public function getStats(): array
     {
-        $total = $this->pdo->query("
-            SELECT COUNT(*) as count FROM {$this->tableName}
-        ")->fetch(PDO::FETCH_ASSOC)['count'];
+        $g = $this->q['group'];
+
+        $total = (int) $this->pdo->query(
+            "SELECT COUNT(*) as cnt FROM {$this->tableName}",
+        )->fetch(PDO::FETCH_ASSOC)['cnt'];
 
         $byLocale = [];
-        $stmt = $this->pdo->query("
-            SELECT locale, COUNT(*) as count 
-            FROM {$this->tableName} 
-            GROUP BY locale
-        ");
+        $stmt = $this->pdo->query(
+            "SELECT locale, COUNT(*) as cnt FROM {$this->tableName} GROUP BY locale",
+        );
+
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             if (is_array($row) && isset($row['locale']) && is_string($row['locale'])) {
-                $byLocale[$row['locale']] = (int)$row['count'];
+                $byLocale[$row['locale']] = (int) $row['cnt'];
             }
         }
 
         $byGroup = [];
-        $stmt = $this->pdo->query("
-            SELECT `group`, COUNT(*) as count 
-            FROM {$this->tableName} 
-            GROUP BY `group`
-        ");
+        $stmt = $this->pdo->query(
+            "SELECT {$g}, COUNT(*) as cnt FROM {$this->tableName} GROUP BY {$g}",
+        );
+
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             if (is_array($row) && isset($row['group']) && is_string($row['group'])) {
-                $byGroup[$row['group']] = (int)$row['count'];
+                $byGroup[$row['group']] = (int) $row['cnt'];
             }
         }
 
         $bySource = [];
-        $stmt = $this->pdo->query("
-            SELECT source, COUNT(*) as count 
-            FROM {$this->tableName} 
-            GROUP BY source
-        ");
+        $stmt = $this->pdo->query(
+            "SELECT source, COUNT(*) as cnt FROM {$this->tableName} GROUP BY source",
+        );
+
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             if (is_array($row) && isset($row['source']) && is_string($row['source'])) {
-                $bySource[$row['source']] = (int)$row['count'];
+                $bySource[$row['source']] = (int) $row['cnt'];
             }
         }
 
         return [
-            'total' => (int)$total,
+            'total'     => $total,
             'by_locale' => $byLocale,
-            'by_group' => $byGroup,
+            'by_group'  => $byGroup,
             'by_source' => $bySource,
         ];
     }
 
     /**
-     * Search translations
-     * 
+     * Search translations.
+     *
      * @return array<array{locale: string, group: string, key: string, value: string}>
      */
     public function search(string $query, ?string $locale = null): array
     {
-        $sql = "SELECT locale, `group`, `key`, value 
-                FROM {$this->tableName} 
-                WHERE (`key` LIKE ? OR value LIKE ?)";
+        $k = $this->q['key'];
+        $g = $this->q['group'];
+
+        $sql = "SELECT locale, {$g}, {$k}, value
+                FROM {$this->tableName}
+                WHERE ({$k} LIKE ? OR value LIKE ?)";
 
         $params = ["%{$query}%", "%{$query}%"];
 
@@ -460,7 +529,7 @@ final class TranslationManager
             $params[] = $locale;
         }
 
-        $sql .= " ORDER BY locale, `group`, `key` LIMIT 100";
+        $sql .= " ORDER BY locale, {$g}, {$k} LIMIT 100";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
@@ -469,8 +538,8 @@ final class TranslationManager
     }
 
     /**
-     * Batch update translations
-     * 
+     * Batch update translations.
+     *
      * @param array<array{locale: string, group: string, key: string, value: string}> $translations
      */
     public function batchUpdate(array $translations): int
@@ -480,23 +549,16 @@ final class TranslationManager
         $this->pdo->beginTransaction();
 
         try {
-            $stmt = $this->pdo->prepare("
-                UPDATE {$this->tableName}
-                SET value = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE locale = ? AND `group` = ? AND `key` = ?
-            ");
-
             foreach ($translations as $trans) {
-                $stmt->execute([
-                    $trans['value'],
+                $this->set(
                     $trans['locale'],
                     $trans['group'],
-                    $trans['key']
-                ]);
-
-                if ($stmt->rowCount() > 0) {
-                    $count++;
-                }
+                    $trans['key'],
+                    $trans['value'],
+                    $trans['namespace'] ?? null,
+                    $trans['source'] ?? 'batch',
+                );
+                $count++;
             }
 
             $this->pdo->commit();
@@ -508,9 +570,11 @@ final class TranslationManager
         }
     }
 
+    // ── Private methods ──────────────────────────────────────────
+
     /**
-     * Flatten nested array to dot notation
-     * 
+     * Flatten nested array to dot notation.
+     *
      * @param array<string, mixed> $array
      * @return array<string, string>
      */
@@ -519,15 +583,13 @@ final class TranslationManager
         $result = [];
 
         foreach ($array as $key => $value) {
-            $key = (string)$key;
-
+            $key = (string) $key;
             $newKey = $prefix === '' ? $key : $prefix . '.' . $key;
 
             if (is_array($value)) {
-                /** @var array<string, mixed> $value */
                 $result = array_merge($result, $this->flattenArray($value, $newKey));
             } else {
-                $result[$newKey] = (string)$value;
+                $result[$newKey] = (string) $value;
             }
         }
 
@@ -535,8 +597,8 @@ final class TranslationManager
     }
 
     /**
-     * Set nested value using dot notation
-     * 
+     * Set nested value using dot notation.
+     *
      * @param array<string, mixed> $array
      */
     private function setNestedValue(array &$array, string $key, mixed $value): void

@@ -729,27 +729,100 @@ $loader->addNamespace('billing', '/path/to/billing/lang');
 
 ### DatabaseLoader
 
+Load translations from any SQL database — **MySQL, MariaDB, PostgreSQL, and SQLite**.
+
+#### Install the Schema
+
+Ready-to-use SQL files are included in `schema/`:
+
+```bash
+# MySQL / MariaDB
+mysql -u root -p your_database < schema/mysql.sql
+
+# PostgreSQL
+psql -U postgres -d your_database -f schema/pgsql.sql
+
+# SQLite
+sqlite3 storage/database.sqlite < schema/sqlite.sql
+```
+
+#### Schema (MySQL)
+
+```sql
+CREATE TABLE IF NOT EXISTS translations (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    locale VARCHAR(10) NOT NULL,
+    `group` VARCHAR(50) NOT NULL,
+    namespace VARCHAR(50) NOT NULL DEFAULT '',
+    `key` VARCHAR(255) NOT NULL,
+    value TEXT NOT NULL,
+    source VARCHAR(50) NOT NULL DEFAULT 'file',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE INDEX idx_translation_unique (locale, `group`, namespace, `key`),
+    INDEX idx_translation_locale (locale),
+    INDEX idx_translation_group (locale, `group`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### Schema (PostgreSQL)
+
+```sql
+CREATE TABLE IF NOT EXISTS translations (
+    id BIGSERIAL PRIMARY KEY,
+    locale VARCHAR(10) NOT NULL,
+    "group" VARCHAR(50) NOT NULL,
+    namespace VARCHAR(50) NOT NULL DEFAULT '',
+    "key" VARCHAR(255) NOT NULL,
+    value TEXT NOT NULL,
+    source VARCHAR(50) NOT NULL DEFAULT 'file',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (locale, "group", namespace, "key")
+);
+```
+
+#### Schema (SQLite)
+
+```sql
+CREATE TABLE IF NOT EXISTS translations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    locale TEXT NOT NULL,
+    "group" TEXT NOT NULL,
+    namespace TEXT NOT NULL DEFAULT '',
+    "key" TEXT NOT NULL,
+    value TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'file',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (locale, "group", namespace, "key")
+);
+```
+
+#### Usage
+
 ```php
 use MonkeysLegion\I18n\Loaders\DatabaseLoader;
 
+// Works with any PDO connection — auto-detects driver
 $loader = new DatabaseLoader($pdo, 'translations');
+$messages = $loader->load('en', 'messages');
 
-// CREATE TABLE translations (
-//   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-//   locale VARCHAR(10) NOT NULL,
-//   `group` VARCHAR(50) NOT NULL,
-//   namespace VARCHAR(50) NULL,
-//   `key` VARCHAR(255) NOT NULL,
-//   value TEXT NOT NULL,
-//   source VARCHAR(50) DEFAULT 'admin',
-//   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-//   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-//   UNIQUE INDEX idx_translation_key (locale, `group`, namespace, `key`)
-// );
+// Stack with FileLoader (DB translations override file translations)
+$translator = new Translator('en', 'en');
+$translator->addLoader(new FileLoader('/path/to/lang'));  // Base
+$translator->addLoader($loader);                           // Override
+
+// Or use TranslatorFactory (recommended)
+$translator = TranslatorFactory::create([
+    'path' => '/path/to/lang',
+    'pdo'  => $pdo,           // Enables DatabaseLoader automatically
+]);
 
 // Security features:
 // ✅ Table name validated against regex pattern
 // ✅ All queries use parameterized statements
+// ✅ Cross-database UPSERT (ON CONFLICT / ON DUPLICATE KEY)
 // ✅ Readonly PDO property
 ```
 
