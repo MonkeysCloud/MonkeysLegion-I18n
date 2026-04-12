@@ -136,7 +136,7 @@ $messages = $mlcLoader->load('en', 'messages');
 
 // 10-50x faster than JSON decode — compiles to native PHP arrays
 $compiledLoader = new CompiledLoader(
-    source: $fileLoader,
+    sourceLoader: $fileLoader,
     compilePath: __DIR__ . '/storage/cache/i18n',
 );
 
