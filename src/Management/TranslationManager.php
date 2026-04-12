@@ -8,27 +8,44 @@ use PDO;
 use MonkeysLegion\I18n\Translator;
 
 /**
- * Translation Manager for managing both file and database translations
- * 
+ * Translation Manager for managing both file and database translations.
+ *
  * Makes it easy to:
  * - Add translations to database
  * - Export database translations to files
  * - Import file translations to database
  * - Sync between sources
+ *
+ * Security:
+ * - Table name validated against regex pattern
+ * - All queries use parameterized statements
+ * - Transactions for batch operations
  */
 final class TranslationManager
 {
-    private PDO $pdo;
-    private Translator $translator;
-    private string $filePath;
-    private string $tableName;
+    // ── Constants ─────────────────────────────────────────────────
+
+    private const string TABLE_PATTERN = '/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/';
+
+    // ── Properties ────────────────────────────────────────────────
+
+    private readonly PDO $pdo;
+    private readonly Translator $translator;
+    private readonly string $filePath;
+    private readonly string $tableName;
+
+    // ── Constructor ───────────────────────────────────────────────
 
     public function __construct(
         PDO $pdo,
         Translator $translator,
         string $filePath,
-        string $tableName = 'translations'
+        string $tableName = 'translations',
     ) {
+        if (!preg_match(self::TABLE_PATTERN, $tableName)) {
+            throw new \InvalidArgumentException("Invalid table name: '{$tableName}'");
+        }
+
         $this->pdo = $pdo;
         $this->translator = $translator;
         $this->filePath = rtrim($filePath, DIRECTORY_SEPARATOR);
