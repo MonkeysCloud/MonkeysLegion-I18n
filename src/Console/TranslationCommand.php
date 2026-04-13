@@ -243,7 +243,19 @@ final class TranslationCommand
 
             if ($ext === 'json') {
                 $contents = file_get_contents($file);
-                $data = $contents !== false ? json_decode($contents, true) : null;
+                if ($contents !== false) {
+                    $data = json_decode($contents, true);
+                    if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+                        trigger_error(
+                            "Failed to parse JSON translation file '{$file}': " . json_last_error_msg(),
+                            E_USER_WARNING,
+                        );
+                        continue;
+                    }
+                } else {
+                    trigger_error("Failed to read translation file '{$file}'", E_USER_WARNING);
+                    continue;
+                }
             } elseif ($ext === 'mlc') {
                 $loader = new \MonkeysLegion\I18n\Loaders\MlcLoader($this->path);
                 $data   = $loader->load($locale, $group);
@@ -311,6 +323,8 @@ final class TranslationCommand
             $mlc .= "[{$group}]\n";
 
             foreach ($this->flattenArray($data) as $key => $value) {
+                // Backslash must be escaped first so that the later replacements
+                // for \n / \t don't produce double-escaped sequences.
                 $escaped = str_replace(["\\", "\n", "\t"], ['\\\\', '\\n', '\\t'], $value);
                 $mlc    .= "{$key} = \"{$escaped}\"\n";
             }

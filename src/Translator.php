@@ -273,25 +273,7 @@ final class Translator
     }
 
     /**
-     * Get all available keys for a locale.
-     *
-     * @return list<string>
-     */
-    public function allKeys(string $locale, string $group, ?string $namespace = null): array
-    {
-        $this->loadGroup($namespace, $group, $locale);
-
-        $cacheKey = $this->getCacheKey($namespace, $group, $locale);
-
-        if (!isset($this->messages[$cacheKey])) {
-            return [];
-        }
-
-        return $this->flattenKeys($this->messages[$cacheKey]);
-    }
-
-    /**
-     * Get all available keys for a locale.
+     * Get all available translation keys for a locale+group combination (dot-notation).
      *
      * @return list<string>
      */
