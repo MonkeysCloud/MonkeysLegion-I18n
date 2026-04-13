@@ -26,6 +26,9 @@ final class DatabaseLoader implements LoaderInterface
     private readonly PDO $pdo;
     private readonly string $table;
 
+    /** @var array<string, string> Column quoting per driver */
+    private readonly array $q;
+
     /** @var array<string, string> */
     private array $namespaces = [];
 
@@ -37,15 +40,27 @@ final class DatabaseLoader implements LoaderInterface
             throw new \InvalidArgumentException("Invalid table name: '{$table}'");
         }
 
-        $this->pdo = $pdo;
+        $this->pdo   = $pdo;
         $this->table = $table;
+
+        // Detect driver for cross-database column quoting
+        $driver = strtolower((string) ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) ?? 'mysql'));
+
+        $this->q = match ($driver) {
+            'pgsql', 'sqlite' => ['key' => '"key"', 'group' => '"group"', 'value' => '"value"'],
+            default            => ['key' => '`key`', 'group' => '`group`', 'value' => '`value`'],
+        };
     }
 
     // ── LoaderInterface ───────────────────────────────────────────
 
     public function load(string $locale, string $group, ?string $namespace = null): array
     {
-        $sql = "SELECT `key`, `value` FROM {$this->table} WHERE locale = :locale AND `group` = :group";
+        $k = $this->q['key'];
+        $g = $this->q['group'];
+        $v = $this->q['value'];
+
+        $sql = "SELECT {$k}, {$v} FROM {$this->table} WHERE locale = :locale AND {$g} = :group";
 
         $params = [
             'locale' => $locale,

@@ -148,19 +148,21 @@ final class MlcLoader implements LoaderInterface
                 continue;
             }
 
-            $key = trim(substr($line, 0, $eqPos));
+            $key   = trim(substr($line, 0, $eqPos));
             $value = trim(substr($line, $eqPos + 1));
 
-            // Strip surrounding quotes
-            if (
-                (str_starts_with($value, '"') && str_ends_with($value, '"'))
-                || (str_starts_with($value, "'") && str_ends_with($value, "'"))
-            ) {
+            // Strip surrounding quotes, tracking quote style
+            $isDoubleQuoted = str_starts_with($value, '"') && str_ends_with($value, '"');
+            $isSingleQuoted = str_starts_with($value, "'") && str_ends_with($value, "'");
+
+            if ($isDoubleQuoted || $isSingleQuoted) {
                 $value = substr($value, 1, -1);
             }
 
-            // Handle escape sequences in double-quoted strings
-            $value = str_replace(['\\n', '\\t', '\\\\'], ["\n", "\t", "\\"], $value);
+            // Escape sequences only apply to double-quoted strings
+            if ($isDoubleQuoted) {
+                $value = str_replace(['\\n', '\\t', '\\\\'], ["\n", "\t", "\\"], $value);
+            }
 
             // Set nested value using dot notation
             $this->setNestedValue($result, $key, $value);

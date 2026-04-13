@@ -46,9 +46,18 @@ final class LocaleRedirectMiddleware
 
         if (!$hasLocale) {
             $locale = $this->manager->detectLocale();
-            $newPath = '/' . $locale . (is_string($path) ? $path : '/');
 
-            // Return redirect response instead of calling exit()
+            // Sanitize path to prevent open redirect: reject protocol-relative URLs,
+            // null bytes and backslashes, then ensure exactly one leading slash.
+            $safePath = is_string($path) ? $path : '/';
+            $safePath = str_replace(['\\', "\0"], '', $safePath);
+
+            if (str_starts_with($safePath, '//')) {
+                $safePath = '/';
+            }
+
+            $newPath = '/' . $locale . $safePath;
+
             if (!headers_sent()) {
                 header("Location: {$newPath}", true, 302);
             }

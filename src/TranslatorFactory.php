@@ -13,6 +13,7 @@ use MonkeysLegion\I18n\Detectors\SessionDetector;
 use MonkeysLegion\I18n\Detectors\CookieDetector;
 use MonkeysLegion\I18n\Detectors\HeaderDetector;
 use MonkeysLegion\I18n\Detectors\QueryDetector;
+use MonkeysLegion\I18n\Detectors\SubdomainDetector;
 
 use Psr\SimpleCache\CacheInterface;
 
@@ -121,6 +122,7 @@ final class TranslatorFactory
                 'cookie'    => $manager->addDetector(new CookieDetector()),
                 'header'    => $manager->addDetector(new HeaderDetector()),
                 'query'     => $manager->addDetector(new QueryDetector()),
+                'subdomain' => $manager->addDetector(new SubdomainDetector()),
                 default     => null,
             };
         }
