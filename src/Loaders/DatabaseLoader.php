@@ -71,7 +71,7 @@ final class DatabaseLoader implements LoaderInterface
             $sql .= ' AND namespace = :namespace';
             $params['namespace'] = $namespace;
         } else {
-            $sql .= ' AND namespace IS NULL';
+            $sql .= " AND (namespace IS NULL OR namespace = '')";
         }
 
         $stmt = $this->pdo->prepare($sql);

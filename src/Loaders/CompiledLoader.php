@@ -114,6 +114,32 @@ final class CompiledLoader implements LoaderInterface
             }
         }
 
+        // Also scan flat locale files: {sourcePath}/{locale}.{json,php}
+        $flatFiles = glob($sourcePath . DIRECTORY_SEPARATOR . $locale . '.{json,php}', GLOB_BRACE);
+
+        if ($flatFiles !== false) {
+            foreach ($flatFiles as $flatFile) {
+                $contents = file_get_contents($flatFile);
+
+                if ($contents === false) {
+                    continue;
+                }
+
+                $ext = pathinfo($flatFile, PATHINFO_EXTENSION);
+                $data = $ext === 'json'
+                    ? json_decode($contents, true, 64, JSON_THROW_ON_ERROR)
+                    : require $flatFile;
+
+                if (is_array($data)) {
+                    foreach ($data as $group => $groupData) {
+                        if (is_array($groupData) && !isset($all[$group])) {
+                            $all[$group] = $groupData;
+                        }
+                    }
+                }
+            }
+        }
+
         // Generate compiled PHP file
         $compiledFile = $this->getCompiledPath($locale, $namespace);
         $this->writeCompiledFile($compiledFile, $all);
@@ -158,6 +184,18 @@ final class CompiledLoader implements LoaderInterface
             $sourceTime = filemtime($file);
             if ($sourceTime !== false && $sourceTime > $compiledTime) {
                 return false;
+            }
+        }
+
+        // Also check flat locale files
+        $flatFiles = glob($sourcePath . DIRECTORY_SEPARATOR . $locale . '.{json,php}', GLOB_BRACE);
+
+        if ($flatFiles !== false) {
+            foreach ($flatFiles as $flatFile) {
+                $sourceTime = filemtime($flatFile);
+                if ($sourceTime !== false && $sourceTime > $compiledTime) {
+                    return false;
+                }
             }
         }
 

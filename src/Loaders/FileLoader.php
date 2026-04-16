@@ -206,14 +206,14 @@ final class FileLoader implements LoaderInterface
             return; // File doesn't exist yet — will fail at read
         }
 
-        if ($realBase !== false && str_starts_with($realFile, $realBase)) {
+        if ($realBase !== false && str_starts_with($realFile, $realBase . DIRECTORY_SEPARATOR)) {
             return; // Within main path — OK
         }
 
         // Check namespace paths
         foreach ($this->namespaces as $namespacePath) {
             $realNamespace = realpath($namespacePath);
-            if ($realNamespace !== false && str_starts_with($realFile, $realNamespace)) {
+            if ($realNamespace !== false && str_starts_with($realFile, $realNamespace . DIRECTORY_SEPARATOR)) {
                 return; // Within namespace path — OK
             }
         }

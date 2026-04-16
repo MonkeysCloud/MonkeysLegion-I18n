@@ -540,7 +540,7 @@ final class TranslationManager
     /**
      * Batch update translations.
      *
-     * @param array<array{locale: string, group: string, key: string, value: string}> $translations
+     * @param array<array{locale: string, group: string, key: string, value: string, namespace?: string|null, source?: string}> $translations
      */
     public function batchUpdate(array $translations): int
     {

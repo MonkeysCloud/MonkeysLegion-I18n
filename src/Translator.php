@@ -6,7 +6,6 @@ namespace MonkeysLegion\I18n;
 
 use MonkeysLegion\I18n\Contract\LoaderInterface;
 use MonkeysLegion\I18n\Contract\MessageFormatterInterface;
-use MonkeysLegion\I18n\Enum\PluralCategory;
 use MonkeysLegion\I18n\Event\LocaleChangedEvent;
 use MonkeysLegion\I18n\Exceptions\InvalidLocaleException;
 
@@ -89,6 +88,11 @@ final class Translator
      */
     public function addLoader(LoaderInterface $loader): void
     {
+        // Propagate existing namespaces to the new loader
+        foreach ($this->namespaces as $namespace => $path) {
+            $loader->addNamespace($namespace, $path);
+        }
+
         $this->loaders[] = $loader;
     }
 
@@ -98,6 +102,11 @@ final class Translator
     public function addNamespace(string $namespace, string $path): void
     {
         $this->namespaces[$namespace] = $path;
+
+        // Propagate to all registered loaders
+        foreach ($this->loaders as $loader) {
+            $loader->addNamespace($namespace, $path);
+        }
     }
 
     /**

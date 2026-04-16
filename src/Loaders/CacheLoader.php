@@ -16,6 +16,12 @@ use Psr\SimpleCache\CacheInterface;
  * - Selective cache invalidation
  * - Cache tagging for bulk invalidation per locale/namespace
  * - JSON_THROW_ON_ERROR serialization
+ *
+ * NOTE: Tag-based invalidation (forgetLocale/forgetNamespace) uses an
+ * in-memory tag→keys map. Tags are NOT persisted to the cache store,
+ * so tag invalidation only works within the same process lifetime.
+ * For cross-request invalidation, use forget() with explicit keys
+ * or flush() to clear the entire cache.
  */
 final class CacheLoader implements LoaderInterface
 {

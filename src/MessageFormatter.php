@@ -11,7 +11,7 @@ use MonkeysLegion\I18n\Contract\SanitizerInterface;
  * Formats translation messages with parameter replacement and modifiers.
  *
  * Security:
- * - HTML auto-escaping by default (XSS protection)
+ * - Optional HTML auto-escaping (XSS protection) — enable via $autoEscape = true
  * - Pluggable SanitizerInterface
  * - Safe regex patterns (no ReDoS)
  *
