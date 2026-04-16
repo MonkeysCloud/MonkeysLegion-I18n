@@ -25,6 +25,9 @@ final class MessageFormatter implements MessageFormatterInterface
     private readonly bool $autoEscape;
     private readonly SanitizerInterface $sanitizer;
 
+    /** @var array<string, \NumberFormatter> Cached NumberFormatter instances keyed by "{locale}:{style}" */
+    private array $formatters = [];
+
     // ── Constructor ───────────────────────────────────────────────
 
     public function __construct(
@@ -174,7 +177,7 @@ final class MessageFormatter implements MessageFormatterInterface
         }
 
         if ($this->hasIntl) {
-            $formatter = new \NumberFormatter($locale, \NumberFormatter::DECIMAL);
+            $formatter = $this->getNumberFormatter($locale, \NumberFormatter::DECIMAL);
             $formatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, $decimals);
             $formatter->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, $decimals);
 
@@ -194,7 +197,7 @@ final class MessageFormatter implements MessageFormatterInterface
         }
 
         if ($this->hasIntl) {
-            $formatter = new \NumberFormatter($locale, \NumberFormatter::CURRENCY);
+            $formatter = $this->getNumberFormatter($locale, \NumberFormatter::CURRENCY);
 
             return $formatter->formatCurrency((float) $value, $currency) ?: (string) $value;
         }
@@ -220,7 +223,7 @@ final class MessageFormatter implements MessageFormatterInterface
         }
 
         if ($this->hasIntl) {
-            $formatter = new \NumberFormatter($locale, \NumberFormatter::PERCENT);
+            $formatter = $this->getNumberFormatter($locale, \NumberFormatter::PERCENT);
 
             return $formatter->format((float) $value) ?: (string) $value;
         }
@@ -340,5 +343,19 @@ final class MessageFormatter implements MessageFormatterInterface
         }
 
         return mb_substr($value, 0, $length, 'UTF-8') . $suffix;
+    }
+
+    /**
+     * Get a cached NumberFormatter instance to avoid repeated instantiation.
+     */
+    private function getNumberFormatter(string $locale, int $style): \NumberFormatter
+    {
+        $key = "{$locale}:{$style}";
+
+        if (!isset($this->formatters[$key])) {
+            $this->formatters[$key] = new \NumberFormatter($locale, $style);
+        }
+
+        return $this->formatters[$key];
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MonkeysLegion\I18n\Loaders;
 
 use MonkeysLegion\I18n\Contract\LoaderInterface;
+use MonkeysLegion\I18n\Exceptions\LoaderException;
 
 use RuntimeException;
 
@@ -48,6 +49,13 @@ final class CompiledLoader implements LoaderInterface
 
     public function load(string $locale, string $group, ?string $namespace = null): array
     {
+        // Prevent path traversal via user-controlled locale / group / namespace inputs
+        $this->validateSegment($locale, 'locale');
+        $this->validateSegment($group, 'group');
+        if ($namespace !== null) {
+            $this->validateSegment($namespace, 'namespace');
+        }
+
         $cacheKey = $this->getCacheKey($locale, $namespace);
 
         // Check runtime cache
@@ -172,6 +180,24 @@ final class CompiledLoader implements LoaderInterface
     }
 
     // ── Private methods ───────────────────────────────────────────
+
+    /**
+     * Validate a path segment to prevent directory traversal.
+     * Does not include the segment in the exception message to avoid
+     * leaking untrusted input to callers.
+     */
+    private function validateSegment(string $segment, string $label): void
+    {
+        if (
+            $segment === ''
+            || str_contains($segment, '..')
+            || str_contains($segment, '/')
+            || str_contains($segment, '\\')
+            || str_contains($segment, "\0")
+        ) {
+            throw new LoaderException("Invalid {$label} — potential path traversal detected.");
+        }
+    }
 
     private function getCompiledPath(string $locale, ?string $namespace): string
     {

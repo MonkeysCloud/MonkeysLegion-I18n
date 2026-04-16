@@ -58,7 +58,7 @@ final class TranslationManager
         $this->tableName = $tableName;
 
         // Detect driver for cross-database compatibility
-        $this->driver = strtolower($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) ?: 'mysql');
+        $this->driver = strtolower((string) ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) ?? 'mysql'));
 
         // Column quoting differs per driver
         $this->q = match ($this->driver) {
@@ -417,8 +417,8 @@ final class TranslationManager
         // Get from database
         $dbTranslations = $this->getGroup($locale, $group);
 
-        // Merge (database wins)
-        return array_merge($fileTranslations, $dbTranslations);
+        // Merge (database wins over files for same keys, preserving nested structure)
+        return array_replace_recursive($fileTranslations, $dbTranslations);
     }
 
     /**

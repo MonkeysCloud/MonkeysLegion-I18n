@@ -273,7 +273,7 @@ final class Translator
     }
 
     /**
-     * Get all available keys for a locale.
+     * Get all available translation keys for a locale+group combination (dot-notation).
      *
      * @return list<string>
      */
@@ -288,6 +288,47 @@ final class Translator
         }
 
         return $this->flattenKeys($this->messages[$cacheKey]);
+    }
+
+    /**
+     * Get all translations for a group as a flat key-value array.
+     *
+     * @return array<string, string>
+     */
+    public function getAll(string $locale, string $group, ?string $namespace = null): array
+    {
+        $this->loadGroup($namespace, $group, $locale);
+
+        $cacheKey = $this->getCacheKey($namespace, $group, $locale);
+
+        if (!isset($this->messages[$cacheKey])) {
+            return [];
+        }
+
+        return $this->flattenToValues($this->messages[$cacheKey]);
+    }
+
+    /**
+     * Register translations at runtime without a loader.
+     *
+     * @param array<string, mixed> $messages
+     */
+    public function addTranslation(string $locale, string $group, array $messages, ?string $namespace = null): void
+    {
+        $this->mergeMessages($namespace, $group, $locale, $messages);
+
+        // Mark as loaded so subsequent loadGroup calls won't overwrite
+        $cacheKey = $this->getCacheKey($namespace, $group, $locale);
+        $this->loadedNamespaces[$cacheKey] = true;
+    }
+
+    /**
+     * Clear all in-memory loaded groups — forces reload on next access.
+     */
+    public function clearLoadedGroups(): void
+    {
+        $this->messages        = [];
+        $this->loadedNamespaces = [];
     }
 
     // ── Private methods ───────────────────────────────────────────
@@ -411,25 +452,60 @@ final class Translator
     }
 
     /**
-     * Flatten a nested array into dot-notation keys.
+     * Flatten a nested array into dot-notation keys (iterative — avoids deep recursion).
      *
      * @param array<string, mixed> $array
      * @return list<string>
      */
     private function flattenKeys(array $array, string $prefix = ''): array
     {
-        $keys = [];
+        $keys  = [];
+        $stack = [[$array, $prefix]];
 
-        foreach ($array as $key => $value) {
-            $fullKey = $prefix !== '' ? "{$prefix}.{$key}" : (string) $key;
+        while ($stack !== []) {
+            /** @var array{0: array<string, mixed>, 1: string} $item */
+            [$current, $currentPrefix] = array_pop($stack);
 
-            if (is_array($value)) {
-                $keys = array_merge($keys, $this->flattenKeys($value, $fullKey));
-            } else {
-                $keys[] = $fullKey;
+            foreach ($current as $key => $value) {
+                $fullKey = $currentPrefix !== '' ? "{$currentPrefix}.{$key}" : (string) $key;
+
+                if (is_array($value)) {
+                    $stack[] = [$value, $fullKey];
+                } else {
+                    $keys[] = $fullKey;
+                }
             }
         }
 
         return $keys;
+    }
+
+    /**
+     * Flatten a nested array into dot-notation key-value pairs (iterative).
+     *
+     * @param array<string, mixed> $array
+     * @return array<string, string>
+     */
+    private function flattenToValues(array $array, string $prefix = ''): array
+    {
+        $result = [];
+        $stack  = [[$array, $prefix]];
+
+        while ($stack !== []) {
+            /** @var array{0: array<string, mixed>, 1: string} $item */
+            [$current, $currentPrefix] = array_pop($stack);
+
+            foreach ($current as $key => $value) {
+                $fullKey = $currentPrefix !== '' ? "{$currentPrefix}.{$key}" : (string) $key;
+
+                if (is_array($value)) {
+                    $stack[] = [$value, $fullKey];
+                } elseif (is_string($value)) {
+                    $result[$fullKey] = $value;
+                }
+            }
+        }
+
+        return $result;
     }
 }
