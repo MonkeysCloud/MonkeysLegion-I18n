@@ -2,17 +2,13 @@
 
 declare(strict_types=1);
 
+/**
+ * Backward compatibility stub: MonkeysLegion\I18n\Contracts\LocaleDetectorInterface
+ * → canonical MonkeysLegion\I18n\Contract\LocaleDetectorInterface
+ */
+
 namespace MonkeysLegion\I18n\Contracts;
 
-/**
- * Interface for locale detectors
- */
-interface LocaleDetectorInterface
+interface LocaleDetectorInterface extends \MonkeysLegion\I18n\Contract\LocaleDetectorInterface
 {
-    /**
-     * Detect locale from the current context
-     * 
-     * @return string|null Detected locale or null if not detected
-     */
-    public function detect(): ?string;
 }

@@ -7,29 +7,18 @@ namespace MonkeysLegion\I18n\Exceptions;
 use RuntimeException;
 
 /**
- * Exception thrown when a translation is not found
+ * Exception thrown when a translation is not found.
  */
-class TranslationNotFoundException extends RuntimeException
+final class TranslationNotFoundException extends RuntimeException
 {
-    private string $key;
-    private string $locale;
+    public readonly string $key;
+    public readonly string $locale;
 
     public function __construct(string $key, string $locale)
     {
         $this->key = $key;
         $this->locale = $locale;
-        
-        $message = "Translation not found: '{$key}' for locale '{$locale}'";
-        parent::__construct($message);
-    }
 
-    public function getKey(): string
-    {
-        return $this->key;
-    }
-
-    public function getLocale(): string
-    {
-        return $this->locale;
+        parent::__construct("Translation not found: '{$key}' for locale '{$locale}'");
     }
 }

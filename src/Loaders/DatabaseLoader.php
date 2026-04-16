@@ -4,92 +4,114 @@ declare(strict_types=1);
 
 namespace MonkeysLegion\I18n\Loaders;
 
-use MonkeysLegion\I18n\Contracts\LoaderInterface;
+use MonkeysLegion\I18n\Contract\LoaderInterface;
+
 use PDO;
 
 /**
- * Loads translations from database
- * 
- * Expected table structure:
- * - locale (varchar)
- * - group (varchar)
- * - namespace (varchar, nullable)
- * - key (varchar)
- * - value (text)
+ * Loads translations from database with security hardening.
+ *
+ * Security:
+ * - Table name validated against allowlist pattern
+ * - All queries use parameterized statements
  */
 final class DatabaseLoader implements LoaderInterface
 {
-    private PDO $pdo;
-    private string $table;
-    
+    // ── Constants ─────────────────────────────────────────────────
+
+    private const string TABLE_PATTERN = '/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/';
+
+    // ── Properties ────────────────────────────────────────────────
+
+    private readonly PDO $pdo;
+    private readonly string $table;
+
+    /** @var array<string, string> Column quoting per driver */
+    private readonly array $q;
+
     /** @var array<string, string> */
     private array $namespaces = [];
 
+    // ── Constructor ───────────────────────────────────────────────
+
     public function __construct(PDO $pdo, string $table = 'translations')
     {
-        $this->pdo = $pdo;
+        if (!preg_match(self::TABLE_PATTERN, $table)) {
+            throw new \InvalidArgumentException("Invalid table name: '{$table}'");
+        }
+
+        $this->pdo   = $pdo;
         $this->table = $table;
+
+        // Detect driver for cross-database column quoting
+        $driver = strtolower((string) ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) ?? 'mysql'));
+
+        $this->q = match ($driver) {
+            'pgsql', 'sqlite' => ['key' => '"key"', 'group' => '"group"', 'value' => '"value"'],
+            default            => ['key' => '`key`', 'group' => '`group`', 'value' => '`value`'],
+        };
     }
 
-    /**
-     * {@inheritdoc}
-     */
+    // ── LoaderInterface ───────────────────────────────────────────
+
     public function load(string $locale, string $group, ?string $namespace = null): array
     {
-        $sql = "SELECT `key`, `value` FROM {$this->table} 
-                WHERE locale = :locale 
-                AND `group` = :group";
-        
+        $k = $this->q['key'];
+        $g = $this->q['group'];
+        $v = $this->q['value'];
+
+        $sql = "SELECT {$k}, {$v} FROM {$this->table} WHERE locale = :locale AND {$g} = :group";
+
         $params = [
             'locale' => $locale,
-            'group' => $group,
+            'group'  => $group,
         ];
-        
+
         if ($namespace !== null) {
-            $sql .= " AND namespace = :namespace";
+            $sql .= ' AND namespace = :namespace';
             $params['namespace'] = $namespace;
         } else {
-            $sql .= " AND namespace IS NULL";
+            $sql .= " AND (namespace IS NULL OR namespace = '')";
         }
-        
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
-        
+
         $messages = [];
-        
+
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $this->setNestedValue($messages, $row['key'], $row['value']);
+            if (is_array($row) && isset($row['key'], $row['value'])) {
+                $this->setNestedValue($messages, (string) $row['key'], (string) $row['value']);
+            }
         }
-        
+
         return $messages;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function addNamespace(string $namespace, string $path): void
     {
-        // Not used in database loader, but required by interface
         $this->namespaces[$namespace] = $path;
     }
 
+    // ── Private methods ───────────────────────────────────────────
+
     /**
-     * Set nested array value using dot notation
-     * 
+     * Set nested array value using dot notation.
+     *
      * @param array<string, mixed> $array
      */
     private function setNestedValue(array &$array, string $key, string $value): void
     {
         $keys = explode('.', $key);
         $current = &$array;
-        
+
         foreach ($keys as $k) {
-            if (!isset($current[$k])) {
+            if (!isset($current[$k]) || !is_array($current[$k])) {
                 $current[$k] = [];
             }
             $current = &$current[$k];
         }
-        
+
         $current = $value;
     }
 }

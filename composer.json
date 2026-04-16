@@ -1,9 +1,9 @@
 {
   "name": "monkeyscloud/monkeyslegion-i18n",
-  "description": "Production-ready I18n & localization component for the MonkeysLegion PHP framework",
+  "description": "Production-ready I18n & localization component for the MonkeysLegion PHP framework — v2",
   "type": "library",
   "license": "MIT",
-  "keywords": ["i18n", "localization", "translation", "monkeyslegion", "internationalization"],
+  "keywords": ["i18n", "localization", "translation", "monkeyslegion", "internationalization", "php84"],
   "minimum-stability": "dev",
   "prefer-stable": true,
   "authors": [
@@ -16,7 +16,6 @@
     "php": "^8.4",
     "ext-json": "*",
     "ext-mbstring": "*",
-    "monkeyscloud/monkeyslegion-cache": "^1.0",
     "psr/simple-cache": "^3.0"
   },
   "require-dev": {
@@ -35,7 +34,8 @@
     "check-tests": "vendor/bin/phpunit --list-tests"
   },
   "suggest": {
-    "ext-intl": "For advanced number and currency formatting (optional)",
+    "ext-intl": "For advanced number, currency, and date formatting (optional)",
+    "monkeyscloud/monkeyslegion-cache": "For cache-backed translation loader",
     "monkeyscloud/monkeyslegion-database": "For database translation loader",
     "monkeyscloud/monkeyslegion-template": "For template directive support"
   },
@@ -54,7 +54,7 @@
   },
   "extra": {
     "branch-alias": {
-      "dev-main": "2.0.x-dev"
+      "dev-main": "2.1.x-dev"
     }
   },
   "config": {

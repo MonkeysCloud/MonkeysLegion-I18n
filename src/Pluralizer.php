@@ -4,29 +4,64 @@ declare(strict_types=1);
 
 namespace MonkeysLegion\I18n;
 
+use MonkeysLegion\I18n\Enum\PluralCategory;
+
 /**
- * Handles pluralization using ICU-compliant plural rules
- * Supports: zero, one, two, few, many, other
+ * Handles pluralization using ICU-compliant plural rules.
+ *
+ * Supports all CLDR plural categories: zero, one, two, few, many, other.
+ * Performance: locale-to-rule mapping is a const array for zero overhead.
  */
 final class Pluralizer
 {
+    // ── Locale → rule mapping (const for opcache) ─────────────────
+
+    private const array LOCALE_RULES = [
+        'pl'            => 'polish',
+        'ru'            => 'russian',
+        'uk'            => 'russian',
+        'be'            => 'russian',
+        'sr'            => 'russian',
+        'hr'            => 'russian',
+        'cs'            => 'czech',
+        'sk'            => 'czech',
+        'ro'            => 'romanian',
+        'mo'            => 'romanian',
+        'ar'            => 'arabic',
+        'cy'            => 'welsh',
+        'fr'            => 'one-with-zero-other',
+        'pt'            => 'one-with-zero-other',
+        'ja'            => 'zero',
+        'ko'            => 'zero',
+        'zh'            => 'zero',
+        'th'            => 'zero',
+        'vi'            => 'zero',
+        'id'            => 'zero',
+        'ms'            => 'zero',
+        'lo'            => 'zero',
+        'bo'            => 'zero',
+        'dz'            => 'zero',
+        'km'            => 'zero',
+    ];
+
+    // ── Public API ────────────────────────────────────────────────
+
     /**
-     * Choose the correct plural form based on count and locale
-     * 
-     * Format: "There is one apple|There are :count apples"
-     * Complex: "{0} No apples|{1} One apple|[2,*] :count apples"
-     * ICU: "{0} No apples|one: One apple|other: :count apples"
+     * Choose the correct plural form based on count and locale.
+     *
+     * Supported formats:
+     * - Pipe-delimited: "There is one apple|There are :count apples"
+     * - Explicit: "{0} No apples|{1} One apple|[2,*] :count apples"
+     * - ICU categories: "zero: None|one: One apple|other: :count apples"
      */
     public function choose(string $message, int|float $count, string $locale): string
     {
-        // Parse the plural message
         $forms = $this->parsePlural($message);
 
         if (empty($forms)) {
             return $message;
         }
 
-        // Get the plural rule for this locale
         $rule = $this->getPluralRule($locale);
 
         // Check for explicit count match first: {0}, {1}, {2}, etc.
@@ -57,9 +92,22 @@ final class Pluralizer
     }
 
     /**
-     * Parse plural message into forms
-     * 
-     * @return array<string>
+     * Get the plural category for a count and locale.
+     */
+    public function getCategoryForCount(int|float $count, string $locale): PluralCategory
+    {
+        $rule = $this->getPluralRule($locale);
+        $value = $this->getPluralCategory($count, $rule);
+
+        return PluralCategory::from($value);
+    }
+
+    // ── Private methods ───────────────────────────────────────────
+
+    /**
+     * Parse plural message into forms.
+     *
+     * @return list<string>
      */
     private function parsePlural(string $message): array
     {
@@ -72,8 +120,9 @@ final class Pluralizer
     private function matchesExplicitCount(string $form, int|float $count): bool
     {
         if (preg_match('/^\{(\d+)\}\s*(.*)$/', $form, $matches)) {
-            return (int)$matches[1] === (int)$count;
+            return (int) $matches[1] === (int) $count;
         }
+
         return false;
     }
 
@@ -83,10 +132,12 @@ final class Pluralizer
     private function matchesRange(string $form, int|float $count): bool
     {
         if (preg_match('/^\[(\d+),(\*|\d+)\]\s*(.*)$/', $form, $matches)) {
-            $min = (int)$matches[1];
-            $max = $matches[2] === '*' ? PHP_INT_MAX : (int)$matches[2];
+            $min = (int) $matches[1];
+            $max = $matches[2] === '*' ? PHP_INT_MAX : (int) $matches[2];
+
             return $count >= $min && $count <= $max;
         }
+
         return false;
     }
 
@@ -98,82 +149,59 @@ final class Pluralizer
         if (preg_match('/^(zero|one|two|few|many|other):\s*(.*)$/i', $form, $matches)) {
             return strtolower($matches[1]) === $category;
         }
+
         return false;
     }
 
     /**
-     * Extract message from form (remove prefix)
+     * Extract message from form (remove prefix).
      */
     private function extractMessage(string $form): string
     {
-        // Remove {n}, [n,m], or category: prefix
-        $form = (string)preg_replace('/^\{(\d+)\}\s*/', '', $form);
-        $form = (string)preg_replace('/^\[(\d+),(\*|\d+)\]\s*/', '', $form);
-        $form = (string)preg_replace('/^(zero|one|two|few|many|other):\s*/i', '', $form);
+        $form = (string) preg_replace('/^\{\d+\}\s*/', '', $form);
+        $form = (string) preg_replace('/^\[\d+,(?:\*|\d+)\]\s*/', '', $form);
+        $form = (string) preg_replace('/^(?:zero|one|two|few|many|other):\s*/i', '', $form);
+
         return trim($form);
     }
 
     /**
-     * Simple choice between singular/plural (fallback)
-     */
-    /**
-     * @param array<int, string> $forms
+     * Simple choice between singular/plural (fallback).
+     *
+     * @param list<string> $forms
      */
     private function simpleChoice(array $forms, int|float $count): string
     {
         $index = $count === 1 ? 0 : 1;
+
         return $forms[$index] ?? $forms[0];
     }
 
     /**
-     * Get plural category for count based on locale rules
+     * Get plural category for count based on locale rules.
      */
     private function getPluralCategory(int|float $count, string $rule): string
     {
         $n = abs($count);
-        $i = (int)$n;
+        $i = (int) $n;
         $v = $this->getDecimalPlaces($n);
-        $f = $this->getFractionalPart($n);
 
         return match ($rule) {
-            // English, German, Dutch, Swedish, Danish, Norwegian, Finnish
-            'one-other' => ($n === 1) ? 'one' : 'other',
-
-            // French, Portuguese (Brazil)
-            'one-with-zero-other' => ($n >= 0 && $n < 2) ? 'one' : 'other',
-
-            // Spanish, Italian
-            'one-other-strict' => ($n === 1) ? 'one' : 'other',
-
-            // Polish
-            'polish' => $this->polishRule($n, $i, $v),
-
-            // Russian, Ukrainian, Serbian, Croatian
-            'russian' => $this->russianRule($n, $i, $v),
-
-            // Czech, Slovak
-            'czech' => $this->czechRule($n, $i, $v),
-
-            // Romanian
-            'romanian' => $this->romanianRule($n, $i, $v),
-
-            // Arabic
-            'arabic' => $this->arabicRule($n),
-
-            // Welsh
-            'welsh' => $this->welshRule($n),
-
-            // Japanese, Korean, Chinese, Thai, Vietnamese
-            'zero' => 'other',
-
-            default => ($n === 1) ? 'one' : 'other'
+            'one-other'            => ($n === 1) ? 'one' : 'other',
+            'one-with-zero-other'  => ($n >= 0 && $n < 2) ? 'one' : 'other',
+            'one-other-strict'     => ($n === 1) ? 'one' : 'other',
+            'polish'               => $this->polishRule($i, $v),
+            'russian'              => $this->russianRule($i, $v),
+            'czech'                => $this->czechRule($i, $v),
+            'romanian'             => $this->romanianRule($n, $i, $v),
+            'arabic'               => $this->arabicRule($n),
+            'welsh'                => $this->welshRule($n),
+            'zero'                 => 'other',
+            default                => ($n === 1) ? 'one' : 'other',
         };
     }
 
-    /**
-     * Polish plural rules
-     */
-    private function polishRule(float $n, int $i, int $v): string
+    private function polishRule(int $i, int $v): string
     {
         if ($v === 0 && $i === 1) {
             return 'one';
@@ -181,13 +209,11 @@ final class Pluralizer
         if ($v === 0 && $i % 10 >= 2 && $i % 10 <= 4 && ($i % 100 < 12 || $i % 100 > 14)) {
             return 'few';
         }
+
         return 'other';
     }
 
-    /**
-     * Russian plural rules
-     */
-    private function russianRule(float $n, int $i, int $v): string
+    private function russianRule(int $i, int $v): string
     {
         if ($v === 0 && $i % 10 === 1 && $i % 100 !== 11) {
             return 'one';
@@ -195,13 +221,11 @@ final class Pluralizer
         if ($v === 0 && $i % 10 >= 2 && $i % 10 <= 4 && ($i % 100 < 12 || $i % 100 > 14)) {
             return 'few';
         }
+
         return 'other';
     }
 
-    /**
-     * Czech plural rules
-     */
-    private function czechRule(float $n, int $i, int $v): string
+    private function czechRule(int $i, int $v): string
     {
         if ($i === 1 && $v === 0) {
             return 'one';
@@ -209,12 +233,10 @@ final class Pluralizer
         if ($i >= 2 && $i <= 4 && $v === 0) {
             return 'few';
         }
+
         return 'other';
     }
 
-    /**
-     * Romanian plural rules
-     */
     private function romanianRule(float $n, int $i, int $v): string
     {
         if ($i === 1 && $v === 0) {
@@ -223,12 +245,10 @@ final class Pluralizer
         if ($v !== 0 || $i === 0 || ($i % 100 >= 2 && $i % 100 <= 19)) {
             return 'few';
         }
+
         return 'other';
     }
 
-    /**
-     * Arabic plural rules
-     */
     private function arabicRule(float $n): string
     {
         if ($n === 0.0) {
@@ -246,81 +266,51 @@ final class Pluralizer
         if ($n % 100 >= 11) {
             return 'many';
         }
+
         return 'other';
     }
 
-    /**
-     * Welsh plural rules
-     */
     private function welshRule(float $n): string
     {
-        if ($n === 0.0) {
-            return 'zero';
-        }
-        if ($n === 1.0) {
-            return 'one';
-        }
-        if ($n === 2.0) {
-            return 'two';
-        }
-        if ($n === 3.0) {
-            return 'few';
-        }
-        if ($n === 6.0) {
-            return 'many';
-        }
-        return 'other';
+        return match (true) {
+            $n === 0.0 => 'zero',
+            $n === 1.0 => 'one',
+            $n === 2.0 => 'two',
+            $n === 3.0 => 'few',
+            $n === 6.0 => 'many',
+            default    => 'other',
+        };
     }
 
     /**
-     * Get decimal places count
+     * Get decimal places count.
      */
     private function getDecimalPlaces(float $n): int
     {
-        $str = (string)$n;
-        if (strpos($str, '.') === false) {
+        $str = (string) $n;
+
+        if (!str_contains($str, '.')) {
             return 0;
         }
+
         return strlen(substr($str, strpos($str, '.') + 1));
     }
 
     /**
-     * Get fractional part
-     */
-    private function getFractionalPart(float $n): int
-    {
-        $str = (string)$n;
-        if (strpos($str, '.') === false) {
-            return 0;
-        }
-        return (int)substr($str, strpos($str, '.') + 1);
-    }
-
-    /**
-     * Replace :count placeholder with actual count
+     * Replace :count placeholder with actual count.
      */
     private function replaceCount(string $message, int|float $count): string
     {
-        return str_replace(':count', (string)$count, $message);
+        return str_replace(':count', (string) $count, $message);
     }
+
     /**
-     * Get plural rule for locale
+     * Get plural rule for locale.
      */
     private function getPluralRule(string $locale): string
     {
-        // Extract language code
         $lang = substr($locale, 0, 2);
 
-        return match ($lang) {
-            'pl' => 'polish',
-            'ru', 'uk', 'be', 'sr', 'hr' => 'russian',
-            'cs', 'sk' => 'czech',
-            'ro', 'mo' => 'romanian',
-            'ar' => 'arabic',
-            'cy' => 'welsh',
-            'fr', 'pt' => 'one-with-zero-other',
-            'ja', 'ko', 'zh', 'th', 'vi', 'id', 'ms', 'lo', 'bo', 'dz', 'km' => 'zero',
-            default => 'one-other'
-        };
+        return self::LOCALE_RULES[$lang] ?? 'one-other';
     }
 }

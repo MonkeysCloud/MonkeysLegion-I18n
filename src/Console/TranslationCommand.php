@@ -133,7 +133,11 @@ final class TranslationCommand
             case 'csv':
                 $content = $this->exportToCsv($translations);
                 break;
-                
+
+            case 'mlc':
+                $content = $this->exportToMlc($translations);
+                break;
+
             default:
                 echo "Unsupported format: {$format}\n";
                 return;
@@ -221,26 +225,49 @@ final class TranslationCommand
     private function loadAllTranslations(string $locale): array
     {
         $translations = [];
-        $localePath = $this->path . DIRECTORY_SEPARATOR . $locale;
-        
+        $localePath   = $this->path . DIRECTORY_SEPARATOR . $locale;
+
         if (!is_dir($localePath)) {
             return $translations;
         }
-        
-        $files = glob($localePath . '/*.{json,php}', GLOB_BRACE);
-        
+
+        $files = glob($localePath . '/*.{json,php,mlc}', GLOB_BRACE);
+
+        if ($files === false) {
+            return $translations;
+        }
+
         foreach ($files as $file) {
             $group = pathinfo($file, PATHINFO_FILENAME);
-            
-            if (pathinfo($file, PATHINFO_EXTENSION) === 'json') {
-                $data = json_decode(file_get_contents($file), true);
+            $ext   = pathinfo($file, PATHINFO_EXTENSION);
+
+            if ($ext === 'json') {
+                $contents = file_get_contents($file);
+                if ($contents !== false) {
+                    $data = json_decode($contents, true);
+                    if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+                        trigger_error(
+                            "Failed to parse JSON translation file '{$file}': " . json_last_error_msg(),
+                            E_USER_WARNING,
+                        );
+                        continue;
+                    }
+                } else {
+                    trigger_error("Failed to read translation file '{$file}'", E_USER_WARNING);
+                    continue;
+                }
+            } elseif ($ext === 'mlc') {
+                $loader = new \MonkeysLegion\I18n\Loaders\MlcLoader($this->path);
+                $data   = $loader->load($locale, $group);
             } else {
                 $data = require $file;
             }
-            
-            $translations[$group] = $data;
+
+            if (is_array($data)) {
+                $translations[$group] = $data;
+            }
         }
-        
+
         return $translations;
     }
 
@@ -277,6 +304,35 @@ final class TranslationCommand
         }
         
         return $result;
+    }
+
+    /**
+     * Export translations to MLC format
+     *
+     * @param array<string, mixed> $translations
+     */
+    private function exportToMlc(array $translations): string
+    {
+        $mlc = "# Auto-generated MLC translation file\n\n";
+
+        foreach ($translations as $group => $data) {
+            if (!is_array($data)) {
+                continue;
+            }
+
+            $mlc .= "[{$group}]\n";
+
+            foreach ($this->flattenArray($data) as $key => $value) {
+                // Backslash must be escaped first so that the later replacements
+                // for \n / \t don't produce double-escaped sequences.
+                $escaped = str_replace(["\\", "\n", "\t"], ['\\\\', '\\n', '\\t'], $value);
+                $mlc    .= "{$key} = \"{$escaped}\"\n";
+            }
+
+            $mlc .= "\n";
+        }
+
+        return $mlc;
     }
 
     /**

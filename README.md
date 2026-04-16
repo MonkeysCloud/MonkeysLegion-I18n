@@ -1,17 +1,77 @@
-# MonkeysLegion I18n
+# MonkeysLegion I18n v2
 
-Production-ready internationalization and localization package for the MonkeysLegion PHP framework.
+**Production-ready internationalization & localization for the MonkeysLegion PHP framework.**
 
-## ✨ Features
+[![PHP 8.4+](https://img.shields.io/badge/PHP-8.4%2B-blue.svg)](https://php.net)
+[![Tests](https://img.shields.io/badge/Tests-127%20passing-brightgreen.svg)]()
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![v2 Standards](https://img.shields.io/badge/MonkeysLegion-v2%20Standards-orange.svg)]()
 
-- 🌍 **Multiple Translation Sources**: JSON files, PHP arrays, Database, Cache
-- 📝 **ICU Pluralization**: Plural rules for 200+ languages
-- 🎯 **Auto Locale Detection**: URL, Session, Headers, Cookies
-- 🚀 **High Performance**: Built-in caching support
-- 🔄 **Fallback Chain**: Locale → Fallback → Default
-- 📦 **Namespacing**: Package-level translations (`vendor::file.key`)
-- 📊 **Missing Translation Tracking**: Development mode tracking
-- 💾 **Hybrid System**: Use JSON files AND database simultaneously
+Translate, pluralize, format numbers/dates/currencies, and manage locales with security and performance at the core. Built with PHP 8.4 property hooks and asymmetric visibility.
+
+---
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Translator](#translator)
+  - [Basic Translation](#basic-translation)
+  - [Parameter Replacement](#parameter-replacement)
+  - [Pluralization](#pluralization)
+  - [Namespaced Translations](#namespaced-translations)
+  - [Fallback Locale](#fallback-locale)
+  - [Missing Translation Tracking](#missing-translation-tracking)
+  - [Warm-Up](#warm-up)
+- [MessageFormatter](#messageformatter)
+  - [Parameter Modifiers](#parameter-modifiers)
+  - [XSS Protection](#xss-protection)
+- [NumberFormatter](#numberformatter)
+  - [Decimal Formatting](#decimal-formatting)
+  - [Currency Formatting](#currency-formatting)
+  - [Compact Notation](#compact-notation)
+  - [Ordinals](#ordinals)
+  - [File Size](#file-size)
+- [DateFormatter](#dateformatter)
+  - [Named Formats](#named-formats)
+  - [Relative Time](#relative-time)
+  - [Diff for Humans](#diff-for-humans)
+- [LocaleManager](#localemanager)
+  - [Detection Chain](#detection-chain)
+  - [Supported Locales](#supported-locales)
+- [LocaleInfo](#localeinfo)
+  - [Native Names](#native-names)
+  - [RTL Detection](#rtl-detection)
+  - [Flag Emojis](#flag-emojis)
+- [Loaders](#loaders)
+  - [FileLoader](#fileloader)
+  - [DatabaseLoader](#databaseloader)
+  - [CacheLoader](#cacheloader)
+  - [CompiledLoader](#compiledloader)
+  - [MlcLoader](#mlcloader)
+- [Middleware](#middleware)
+  - [LocaleMiddleware](#localemiddleware)
+  - [LocaleUrlMiddleware](#localeurlmiddleware)
+  - [LocaleRedirectMiddleware](#localeredirectmiddleware)
+- [Enums](#enums)
+  - [PluralCategory](#pluralcategory)
+  - [Direction](#direction)
+- [Attributes](#attributes)
+  - [#\[Translatable\]](#translatable)
+  - [#\[Locale\]](#locale)
+- [Events](#events)
+- [Template Directives](#template-directives)
+- [Helper Functions](#helper-functions)
+- [TranslatorFactory](#translatorfactory)
+- [Translation Management](#translation-management)
+- [CLI Commands](#cli-commands)
+- [Security](#security)
+- [Performance](#performance)
+- [Migration from v1](#migration-from-v1)
+- [Testing](#testing)
+- [License](#license)
+
+---
 
 ## Installation
 
@@ -19,561 +79,1361 @@ Production-ready internationalization and localization package for the MonkeysLe
 composer require monkeyscloud/monkeyslegion-i18n
 ```
 
-**Note**: The `php-intl` extension is optional but recommended for advanced number/date formatting.
+### Requirements
+
+- **PHP 8.4+** (property hooks, asymmetric visibility)
+- **ext-json** (JSON translation files)
+- **ext-mbstring** (Unicode support)
+
+### Optional Extensions
+
+```bash
+# Advanced number/currency/date formatting
+ext-intl
+
+# For database translations
+monkeyscloud/monkeyslegion-database
+
+# For cache-backed loading
+monkeyscloud/monkeyslegion-cache
+```
+
+---
 
 ## Quick Start
 
-### Basic Usage with JSON Files
-
-**Step 1: Create translation files**
-
-```bash
-# Create directory structure
-mkdir -p resources/lang/en
-mkdir -p resources/lang/es
-```
-
-**`resources/lang/en/messages.json`**
-
-```json
-{
-  "welcome": "Welcome!",
-  "greeting": "Hello, :name!",
-  "items": "{0} No items|{1} One item|[2,*] :count items"
-}
-```
-
-**`resources/lang/es/messages.json`**
-
-```json
-{
-  "welcome": "¡Bienvenido!",
-  "greeting": "¡Hola, :name!",
-  "items": "{0} Sin artículos|{1} Un artículo|[2,*] :count artículos"
-}
-```
-
-**Step 2: Use the translator**
-
 ```php
-<?php
-
 use MonkeysLegion\I18n\TranslatorFactory;
 
-// Create translator
+// One-line setup
 $translator = TranslatorFactory::create([
-    'locale' => 'es',
+    'locale'   => 'en',
     'fallback' => 'en',
-    'path' => __DIR__ . '/resources/lang'
+    'path'     => __DIR__ . '/resources/lang',
 ]);
 
-// Basic translation
 echo $translator->trans('messages.welcome');
-// Output: ¡Bienvenido!
+// → "Welcome!"
 
-// With parameters
 echo $translator->trans('messages.greeting', ['name' => 'Yorch']);
-// Output: ¡Hola, Yorch!
+// → "Hello, Yorch!"
 
-// Pluralization
-echo $translator->choice('messages.items', 0);  // Sin artículos
-echo $translator->choice('messages.items', 1);  // Un artículo
-echo $translator->choice('messages.items', 5);  // 5 artículos
+echo $translator->choice('messages.items', 5);
+// → "5 items"
 ```
 
-## Complete Examples
-
-### Example 1: JSON Files Only (Simple Application)
-
-Perfect for small to medium applications where all translations are static.
-
-**Directory structure:**
+### Translation File Structure
 
 ```
 resources/lang/
 ├── en/
 │   ├── messages.json
 │   └── validation.json
-└── es/
-    ├── messages.json
-    └── validation.json
+├── es/
+│   ├── messages.json
+│   └── validation.json
+└── fr/
+    └── messages.json
 ```
 
-**`resources/lang/en/validation.json`**
+### Example `messages.json`
 
 ```json
 {
-  "required": "The :field field is required.",
-  "email": "Please enter a valid email address.",
-  "min": {
-    "string": "Must be at least :min characters."
-  },
-  "max": {
-    "string": "Must not exceed :max characters."
+  "welcome": "Welcome!",
+  "greeting": "Hello, :name!",
+  "farewell": "Goodbye, :NAME!",
+  "items": "{0} No items|{1} One item|[2,*] :count items",
+  "nested": {
+    "key": "Nested value",
+    "deep": {
+      "value": "Deep nested value"
+    }
   }
 }
 ```
 
-**Usage:**
+---
+
+## Translator
+
+### Basic Translation
 
 ```php
-<?php
+use MonkeysLegion\I18n\Translator;
+use MonkeysLegion\I18n\Loaders\FileLoader;
 
-$translator = TranslatorFactory::create([
-    'locale' => 'en',
-    'fallback' => 'en',
-    'path' => __DIR__ . '/resources/lang'
-]);
+$translator = new Translator('en', 'en');
+$translator->addLoader(new FileLoader('/path/to/lang'));
 
-// Nested key access
-echo $translator->trans('validation.min.string', ['min' => 8]);
-// Output: Must be at least 8 characters.
+// Simple key
+echo $translator->trans('messages.welcome');
+// → "Welcome!"
+
+// Nested key
+echo $translator->trans('messages.nested.deep.value');
+// → "Deep nested value"
 
 // Check if translation exists
-if ($translator->has('validation.email')) {
-    echo $translator->trans('validation.email');
+if ($translator->has('messages.welcome')) {
+    // Key exists
 }
 
-// Switch locale
-$translator->setLocale('es');
-echo $translator->trans('validation.required', ['field' => 'email']);
+// Returns the key itself when not found
+echo $translator->trans('messages.nonexistent');
+// → "messages.nonexistent"
 ```
 
-### Example 2: Database Translations (CMS/Admin Panel)
-
-Perfect for applications where content admins need to edit translations.
-
-**Step 1: Create translations table**
-
-```sql
-CREATE TABLE `translations` (
-    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    `locale` VARCHAR(10) NOT NULL,
-    `group` VARCHAR(100) NOT NULL,
-    `namespace` VARCHAR(100) NULL,
-    `key` VARCHAR(255) NOT NULL,
-    `value` TEXT NOT NULL,
-    `source` VARCHAR(50) DEFAULT 'database',
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY `unique_translation` (`locale`, `group`, `namespace`, `key`),
-    INDEX `idx_locale` (`locale`),
-    INDEX `idx_group` (`group`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
-
-**Step 2: Configure translator with database**
+### Parameter Replacement
 
 ```php
-<?php
+// Lowercase :name → exact value
+echo $translator->trans('messages.greeting', ['name' => 'Yorch']);
+// → "Hello, Yorch!"
 
-use MonkeysLegion\I18n\TranslatorFactory;
+// Uppercase :NAME → UPPERCASED
+echo $translator->trans('messages.farewell', ['name' => 'Yorch']);
+// → "Goodbye, YORCH!"
 
-// Setup PDO connection
-$pdo = new PDO('mysql:host=localhost;dbname=myapp', 'user', 'password');
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERR_EXCEPTION);
+// Ucfirst :Name → Capitalized
+// Message: "Welcome :Name"
+echo $translator->trans('messages.title', ['name' => 'yorch']);
+// → "Welcome Yorch"
 
-// Create translator with database support
-$translator = TranslatorFactory::create([
-    'locale' => 'en',
-    'fallback' => 'en',
-    'path' => __DIR__ . '/resources/lang',
-    'pdo' => $pdo  // Enable database loader
+// Multiple parameters
+echo $translator->trans('order.summary', [
+    'product' => 'Widget',
+    'count'   => 3,
+    'total'   => '29.97',
 ]);
-
-// Use translations
-echo $translator->trans('pages.homepage.title');
+// → "3x Widget — Total: $29.97"
 ```
 
-**Step 3: Manage translations via database**
+### Pluralization
+
+Supports ICU plural categories for 200+ languages.
 
 ```php
-<?php
+// Explicit count forms
+// "{0} No items|{1} One item|[2,*] :count items"
+echo $translator->choice('messages.items', 0);  // → "No items"
+echo $translator->choice('messages.items', 1);  // → "One item"
+echo $translator->choice('messages.items', 42); // → "42 items"
 
-// Insert/Update a translation
-function saveTranslation(PDO $pdo, string $locale, string $group, string $key, string $value): void
-{
-    $stmt = $pdo->prepare("
-        INSERT INTO translations (locale, `group`, `key`, value)
-        VALUES (?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()
-    ");
+// Range forms
+// "[0,3] A few|[4,10] Several|[11,*] Many"
+echo $translator->choice('messages.range', 2);  // → "A few"
+echo $translator->choice('messages.range', 7);  // → "Several"
+echo $translator->choice('messages.range', 50); // → "Many"
 
-    $stmt->execute([$locale, $group, $key, $value]);
-}
+// Simple pipe-delimited (singular|plural)
+// "apple|apples"
+echo $translator->choice('messages.fruit', 1); // → "apple"
+echo $translator->choice('messages.fruit', 5); // → "apples"
 
-// Usage
-saveTranslation($pdo, 'en', 'pages', 'homepage.title', 'Welcome to Our Store');
-saveTranslation($pdo, 'es', 'pages', 'homepage.title', 'Bienvenido a Nuestra Tienda');
-saveTranslation($pdo, 'en', 'pages', 'homepage.subtitle', 'Find the best products here!');
-
-// Now use them
-echo $translator->trans('pages.homepage.title');      // From database
-echo $translator->trans('pages.homepage.subtitle');   // From database
+// With additional replacements
+echo $translator->choice('messages.items', 3, ['color' => 'red']);
+// "{0} No :color items|{1} One :color item|[2,*] :count :color items"
+// → "3 red items"
 ```
 
-**Bulk import from array:**
+### Namespaced Translations
 
 ```php
-<?php
+// Register a namespace
+$translator->addNamespace('billing', '/path/to/billing/lang');
+$translator->addLoader(new FileLoader('/path/to/billing/lang'));
 
-function importTranslationsToDatabase(PDO $pdo, string $locale, string $group, array $translations): int
-{
-    $count = 0;
-    $pdo->beginTransaction();
-
-    try {
-        $stmt = $pdo->prepare("
-            INSERT INTO translations (locale, `group`, `key`, value)
-            VALUES (?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE value = VALUES(value)
-        ");
-
-        foreach (flattenArray($translations) as $key => $value) {
-            $stmt->execute([$locale, $group, $key, $value]);
-            $count++;
-        }
-
-        $pdo->commit();
-        return $count;
-
-    } catch (\Exception $e) {
-        $pdo->rollBack();
-        throw $e;
-    }
-}
-
-function flattenArray(array $array, string $prefix = ''): array
-{
-    $result = [];
-    foreach ($array as $key => $value) {
-        $newKey = $prefix === '' ? $key : $prefix . '.' . $key;
-        if (is_array($value)) {
-            $result = array_merge($result, flattenArray($value, $newKey));
-        } else {
-            $result[$newKey] = (string)$value;
-        }
-    }
-    return $result;
-}
-
-// Import nested array
-$translations = [
-    'welcome' => 'Hello!',
-    'user' => [
-        'login' => 'Log In',
-        'logout' => 'Log Out',
-        'profile' => 'My Profile'
-    ]
-];
-
-importTranslationsToDatabase($pdo, 'en', 'auth', $translations);
-// Creates: auth.welcome, auth.user.login, auth.user.logout, auth.user.profile
+// Use namespace::group.key format
+echo $translator->trans('billing::invoices.title');
+// → Loads from /path/to/billing/lang/{locale}/invoices.json
 ```
 
-### Example 3: Hybrid System (JSON + Database)
-
-The most powerful approach: use JSON files for static UI text and database for dynamic content.
-
-**Best practice:** Files for code-level translations, database for CMS-managed content.
+### Fallback Locale
 
 ```php
-<?php
+$translator = new Translator('fr', 'en');
 
-use MonkeysLegion\I18n\TranslatorFactory;
+// If 'fr' translation missing, falls back to 'en'
+echo $translator->trans('messages.welcome');
+// French translation exists → "Bienvenue!"
 
-$pdo = new PDO('mysql:host=localhost;dbname=myapp', 'user', 'password');
-
-$translator = TranslatorFactory::create([
-    'locale' => 'en',
-    'fallback' => 'en',
-    'path' => __DIR__ . '/resources/lang',
-    'pdo' => $pdo  // Automatically uses BOTH sources
-]);
-
-// Translation lookup order:
-// 1. Database (if found, use it)
-// 2. JSON files (fallback)
-// 3. Return key if not found
-
-// Example: Static UI from JSON
-echo $translator->trans('common.save');      // From: resources/lang/en/common.json
-echo $translator->trans('common.cancel');    // From: resources/lang/en/common.json
-
-// Example: Dynamic content from database
-echo $translator->trans('pages.about.content');   // From: database
-echo $translator->trans('products.123.title');    // From: database
-
-// Database overrides JSON
-// If "common.save" exists in BOTH, database version wins
-```
-
-**Real-world scenario:**
-
-```php
-<?php
-
-class ProductController
-{
-    private $translator;
-    private $pdo;
-
-    public function show(int $productId)
-    {
-        $product = $this->getProduct($productId);
-
-        // UI labels from JSON files (static, version-controlled)
-        $addToCart = $this->translator->trans('products.add_to_cart');
-        $outOfStock = $this->translator->trans('products.out_of_stock');
-        $inStock = $this->translator->trans('products.in_stock');
-
-        // Product content from database (dynamic, admin-editable)
-        $title = $this->translator->trans("products.{$productId}.title");
-        $description = $this->translator->trans("products.{$productId}.description");
-
-        return view('products.show', compact(
-            'product', 'title', 'description',
-            'addToCart', 'outOfStock', 'inStock'
-        ));
-    }
-}
-
-// Admin can update product translations in database:
-saveTranslation($pdo, 'en', 'products', '123.title', 'Premium Widget');
-saveTranslation($pdo, 'en', 'products', '123.description', 'The best widget money can buy!');
-saveTranslation($pdo, 'es', 'products', '123.title', 'Widget Premium');
-saveTranslation($pdo, 'es', 'products', '123.description', '¡El mejor widget que el dinero puede comprar!');
-```
-
-## Advanced Features
-
-### Locale Detection
-
-Auto-detect user's preferred language from various sources:
-
-```php
-<?php
-
-use MonkeysLegion\I18n\TranslatorFactory;
-
-// Create system with auto-detection
-$system = TranslatorFactory::createSystem([
-    'default' => 'en',
-    'fallback' => 'en',
-    'supported' => ['en', 'es', 'fr', 'de'],
-    'detectors' => ['url', 'session', 'cookie', 'header'],  // Priority order
-    'path' => __DIR__ . '/resources/lang'
-]);
-
-$translator = $system['translator'];
-$localeManager = $system['manager'];
-
-// Auto-detect from:
-// 1. URL: /es/products
-// 2. Session: $_SESSION['locale']
-// 3. Cookie: $_COOKIE['locale']
-// 4. Accept-Language header
-
-$detectedLocale = $localeManager->detectLocale();
-$translator->setLocale($detectedLocale);
-```
-
-### Pluralization Rules
-
-Supports ICU-compliant plural rules for all languages:
-
-```php
-<?php
-
-// English (one/other)
-$message = 'one: You have one message|other: You have :count messages';
-echo $translator->choice($message, 1);  // You have one message
-echo $translator->choice($message, 5);  // You have 5 messages
-
-// Russian (one/few/many)
-$message = 'one: :count товар|few: :count товара|other: :count товаров';
-$translator->setLocale('ru');
-echo $translator->choice($message, 1);   // 1 товар
-echo $translator->choice($message, 2);   // 2 товара
-echo $translator->choice($message, 5);   // 5 товаров
-
-// Explicit numbers
-$message = '{0} No items|{1} One item|[2,5] A few items|[6,*] Many items';
-echo $translator->choice($message, 0);   // No items
-echo $translator->choice($message, 1);   // One item
-echo $translator->choice($message, 3);   // A few items
-echo $translator->choice($message, 10);  // Many items
-```
-
-### Caching with MonkeysLegion-Cache
-
-For high-performance caching, use the [MonkeysLegion-Cache](https://github.com/monkeyscloud/monkeyslegion-cache) package:
-
-```bash
-composer require monkeyscloud/monkeyslegion-cache
-```
-
-```php
-<?php
-
-use MonkeysLegion\I18n\TranslatorFactory;
-use MonkeysLegion\Cache\CacheFactory;
-
-// Create cache instance (PSR-16)
-$cache = CacheFactory::create(['driver' => 'redis']);
-
-$translator = TranslatorFactory::create([
-    'locale' => 'en',
-    'path' => __DIR__ . '/resources/lang',
-    'cache' => $cache,      // Pass cache instance
-    'cache_ttl' => 3600     // Cache time (1 hour)
-]);
-
-// Translations from BOTH files and database will be cached!
+echo $translator->trans('messages.rare_key');
+// French missing, English fallback → "Rare English Value"
 ```
 
 ### Missing Translation Tracking
 
-Track missing translations in development:
-
 ```php
-<?php
-
 $translator->setTrackMissing(true);
 
-// Use translations
-$translator->trans('some.missing.key');
-$translator->trans('another.missing.key');
+$translator->trans('messages.missing1');
+$translator->trans('messages.missing2');
 
-// Get missing translations
 $missing = $translator->getMissingTranslations();
-// ['en.some.missing.key', 'en.another.missing.key']
+// ["en.messages.missing1", "en.messages.missing2"]
 
-foreach ($missing as $key) {
-    error_log("Missing translation: {$key}");
+$translator->clearMissingTranslations();
+```
+
+### Warm-Up
+
+Pre-load translation groups for production performance:
+
+```php
+$translator->warmUp('en', ['messages', 'validation', 'auth']);
+
+// Check what's loaded
+$groups = $translator->getLoadedGroups();
+// ["messages.en", "validation.en", "auth.en"]
+```
+
+### Property Hooks (PHP 8.4)
+
+```php
+$translator = new Translator('en');
+
+// Use property directly
+echo $translator->locale; // → "en"
+
+// Setter triggers validation + event dispatch
+$translator->locale = 'es';
+
+// Invalid locale throws InvalidLocaleException
+$translator->locale = '../etc/passwd'; // ❌ InvalidLocaleException
+```
+
+### Locale Changed Events
+
+```php
+$translator->setEventDispatcher(function (LocaleChangedEvent $event): void {
+    log("Locale changed: {$event->previousLocale} → {$event->newLocale}");
+});
+
+$translator->setLocale('fr'); // Event fires automatically
+```
+
+---
+
+## MessageFormatter
+
+### Parameter Modifiers
+
+Use braced syntax with modifiers for advanced formatting:
+
+```php
+use MonkeysLegion\I18n\MessageFormatter;
+
+$formatter = new MessageFormatter();
+
+// Uppercase
+echo $formatter->format('Name: {name|upper}', ['name' => 'yorch']);
+// → "Name: YORCH"
+
+// Lowercase
+echo $formatter->format('Email: {email|lower}', ['email' => 'USER@EXAMPLE.COM']);
+// → "Email: user@example.com"
+
+// Title case
+echo $formatter->format('Title: {title|title}', ['title' => 'hello world']);
+// → "Title: Hello World"
+
+// Capitalize first
+echo $formatter->format('{msg|ucfirst}', ['msg' => 'hello']);
+// → "Hello"
+
+// Truncate
+echo $formatter->format('{desc|truncate:20}', ['desc' => 'Very long description text']);
+// → "Very long descriptio..."
+
+// Number formatting
+echo $formatter->format('Total: {amount|number:2}', ['amount' => 1234.5]);
+// → "Total: 1,234.50"
+
+// Currency
+echo $formatter->format('Price: {price|currency:EUR}', ['price' => 42.50]);
+// → "Price: €42.50"
+
+// Percentage
+echo $formatter->format('Rate: {rate|percent}', ['rate' => 0.156]);
+// → "Rate: 15.60%"
+
+// Date formatting
+echo $formatter->format('Date: {date|date:medium}', ['date' => '2026-01-15']);
+// → "Date: Jan 15, 2026"
+
+// Default fallback
+echo $formatter->format('Name: {name|default:Anonymous}', ['name' => '']);
+// → "Name: Anonymous"
+```
+
+### XSS Protection
+
+```php
+// Auto-escape disabled by default for backward compatibility
+$formatter = new MessageFormatter();
+echo $formatter->format('Hello :name', ['name' => '<script>alert(1)</script>']);
+// → "Hello <script>alert(1)</script>"
+
+// Enable auto-escape for user-facing output
+$safe = new MessageFormatter(autoEscape: true);
+echo $safe->format('Hello :name', ['name' => '<script>alert(1)</script>']);
+// → "Hello &lt;script&gt;alert(1)&lt;/script&gt;"
+
+// Custom sanitizer
+$custom = new MessageFormatter(
+    autoEscape: true,
+    sanitizer: new MyCustomSanitizer(),
+);
+```
+
+---
+
+## NumberFormatter
+
+Locale-aware number formatting with graceful ext-intl fallback.
+
+```php
+use MonkeysLegion\I18n\NumberFormatter;
+
+$nf = new NumberFormatter();
+```
+
+### Decimal Formatting
+
+```php
+echo $nf->decimal(1234567, 'en');       // → "1,234,567"
+echo $nf->decimal(1234567, 'de');       // → "1.234.567" (with ext-intl)
+echo $nf->decimal(3.14159, 'en', 2);    // → "3.14"
+```
+
+### Currency Formatting
+
+```php
+echo $nf->currency(42.50, 'USD', 'en');  // → "$42.50"
+echo $nf->currency(42.50, 'EUR', 'de');  // → "42,50 €" (with ext-intl)
+echo $nf->currency(42.50, 'GBP', 'en');  // → "£42.50"
+echo $nf->currency(42.50, 'JPY', 'ja');  // → "¥42.50"
+echo $nf->currency(42.50, 'BRL', 'pt');  // → "R$42.50"
+
+// 32 built-in currency symbols
+// USD, EUR, GBP, JPY, CAD, AUD, CHF, CNY, MXN, BRL,
+// INR, KRW, RUB, TRY, SEK, NOK, DKK, PLN, CZK, HUF,
+// RON, BGN, HRK, THB, PHP, MYR, IDR, VND, ZAR, EGP,
+// NGN, KES, ARS, CLP, COP, PEN
+```
+
+### Compact Notation
+
+```php
+echo $nf->compact(500);           // → "500"
+echo $nf->compact(1_234);         // → "1.2K"
+echo $nf->compact(1_500_000);     // → "1.5M"
+echo $nf->compact(2_345_000_000); // → "2.3B"
+echo $nf->compact(-1_234);        // → "-1.2K"
+```
+
+### Ordinals
+
+```php
+echo $nf->ordinal(1);   // → "1st"
+echo $nf->ordinal(2);   // → "2nd"
+echo $nf->ordinal(3);   // → "3rd"
+echo $nf->ordinal(11);  // → "11th"
+echo $nf->ordinal(21);  // → "21st"
+echo $nf->ordinal(112); // → "112th"
+```
+
+### Percentage
+
+```php
+echo $nf->percent(0.156, 'en', 1); // → "15.6%"
+echo $nf->percent(0.5, 'en');      // → "50%"
+```
+
+### File Size
+
+```php
+echo $nf->fileSize(0);         // → "0 B"
+echo $nf->fileSize(1024);      // → "1.00 KB"
+echo $nf->fileSize(1_572_864); // → "1.50 MB"
+echo $nf->fileSize(5e9);       // → "4.66 GB"
+```
+
+### Spell Out
+
+```php
+echo $nf->spellOut(123, 'en');
+// → "one hundred twenty-three" (requires ext-intl)
+
+echo $nf->spellOut(42, 'es');
+// → "cuarenta y dos" (requires ext-intl)
+```
+
+---
+
+## DateFormatter
+
+Locale-aware date/time formatting with relative time support.
+
+```php
+use MonkeysLegion\I18n\DateFormatter;
+
+$df = new DateFormatter();
+```
+
+### Named Formats
+
+```php
+$date = new DateTimeImmutable('2026-01-15');
+
+echo $df->format($date, 'short');    // → "1/15/26"
+echo $df->format($date, 'medium');   // → "Jan 15, 2026"
+echo $df->format($date, 'long');     // → "January 15, 2026"
+echo $df->format($date, 'full');     // → "Thursday, January 15, 2026"
+echo $df->format($date, 'iso');      // → "2026-01-15"
+echo $df->format($date, 'time');     // → "12:00 AM"
+echo $df->format($date, 'datetime'); // → "Jan 15, 2026 12:00 AM"
+
+// Custom format
+echo $df->format($date, 'Y/m/d');    // → "2026/01/15"
+
+// From timestamp
+echo $df->format(1705276800, 'medium'); // → "Jan 15, 2024"
+
+// From string
+echo $df->format('2026-01-15', 'long'); // → "January 15, 2026"
+
+// With timezone
+echo $df->format($date, 'datetime', 'en', 'America/New_York');
+```
+
+### Relative Time
+
+```php
+$now = new DateTimeImmutable('2026-01-15 12:00:00');
+
+// Past — English
+echo $df->relative('2026-01-15 11:58:00', 'en', $now);
+// → "2 minutes ago"
+
+echo $df->relative('2026-01-15 10:00:00', 'en', $now);
+// → "2 hours ago"
+
+echo $df->relative('2026-01-14 12:00:00', 'en', $now);
+// → "1 day ago"
+
+echo $df->relative('2025-11-15 12:00:00', 'en', $now);
+// → "2 months ago"
+
+// Past — Spanish
+echo $df->relative('2026-01-15 10:00:00', 'es', $now);
+// → "hace 2 horas"
+
+echo $df->relative('2026-01-14 12:00:00', 'es', $now);
+// → "hace 1 día"
+
+// Future
+echo $df->relative('2026-01-15 14:00:00', 'en', $now);
+// → "in 2 hours"
+
+// Just now (< 10 seconds)
+echo $df->relative('2026-01-15 11:59:55', 'en', $now);
+// → "just now"
+```
+
+### Diff for Humans
+
+```php
+echo $df->diffForHumans(
+    '2026-01-15 10:00:00',
+    '2026-01-15 12:30:00',
+    'en',
+);
+// → "2 hours ago"
+```
+
+### Day and Month Names
+
+```php
+$date = new DateTimeImmutable('2026-01-15');
+
+echo $df->dayOfWeek($date);             // → "Thursday"
+echo $df->dayOfWeek($date, short: true); // → "Thu"
+
+echo $df->monthName($date);             // → "January"
+echo $df->monthName($date, short: true); // → "Jan"
+```
+
+### ISO 8601
+
+```php
+echo $df->iso('2026-01-15 12:00:00');
+// → "2026-01-15T12:00:00+00:00"
+```
+
+---
+
+## LocaleManager
+
+Manages locale detection, validation, and state.
+
+```php
+use MonkeysLegion\I18n\LocaleManager;
+
+$manager = new LocaleManager(
+    defaultLocale: 'en',
+    supportedLocales: ['en', 'es', 'fr', 'de', 'ja'],
+    fallbackLocale: 'en',
+);
+```
+
+### Detection Chain
+
+```php
+use MonkeysLegion\I18n\Detectors\{
+    UrlDetector,
+    QueryDetector,
+    SessionDetector,
+    CookieDetector,
+    HeaderDetector,
+    SubdomainDetector,
+};
+
+// Priority order (first match wins)
+$manager->addDetector(new UrlDetector(segment: 0));      // /es/products
+$manager->addDetector(new QueryDetector(paramName: 'lang')); // ?lang=es
+$manager->addDetector(new SessionDetector(key: 'locale'));
+$manager->addDetector(new CookieDetector(cookieName: 'locale'));
+$manager->addDetector(new HeaderDetector());              // Accept-Language
+$manager->addDetector(new SubdomainDetector());           // es.example.com
+
+$locale = $manager->detectLocale();
+// Tries each detector in order, returns first supported match
+```
+
+### Supported Locales
+
+```php
+$manager->isSupported('es');     // → true
+$manager->isSupported('xx');     // → false
+
+$manager->addSupportedLocale('pt');
+$manager->isSupported('pt');     // → true
+
+$manager->setLocale('es');       // ✅ Switches locale
+$manager->setLocale('xx');       // ❌ throws InvalidArgumentException
+
+// Asymmetric visibility (PHP 8.4)
+echo $manager->defaultLocale;    // → "en" (read-only from outside)
+echo $manager->fallbackLocale;   // → "en"
+print_r($manager->supportedLocales); // → ["en", "es", "fr", "de", "ja"]
+```
+
+### Locale Parsing
+
+```php
+echo $manager->parseLocale('en-US');  // → "en"
+echo $manager->parseLocale('en_US');  // → "en"
+echo $manager->parseLocale('pt-BR');  // → "pt"
+echo $manager->parseLocale('es');     // → "es"
+```
+
+---
+
+## LocaleInfo
+
+Static metadata for 50+ locales.
+
+```php
+use MonkeysLegion\I18n\Support\LocaleInfo;
+```
+
+### Native Names
+
+```php
+echo LocaleInfo::name('es');       // → "Spanish"
+echo LocaleInfo::nativeName('es'); // → "Español"
+echo LocaleInfo::nativeName('ja'); // → "日本語"
+echo LocaleInfo::nativeName('ar'); // → "العربية"
+echo LocaleInfo::nativeName('ru'); // → "Русский"
+echo LocaleInfo::nativeName('hi'); // → "हिन्दी"
+echo LocaleInfo::nativeName('ko'); // → "한국어"
+echo LocaleInfo::nativeName('zh'); // → "中文"
+```
+
+### RTL Detection
+
+```php
+echo LocaleInfo::isRtl('ar'); // → true (Arabic)
+echo LocaleInfo::isRtl('he'); // → true (Hebrew)
+echo LocaleInfo::isRtl('fa'); // → true (Persian)
+echo LocaleInfo::isRtl('ur'); // → true (Urdu)
+echo LocaleInfo::isRtl('en'); // → false
+
+echo LocaleInfo::direction('ar'); // → Direction::RTL
+echo LocaleInfo::direction('en'); // → Direction::LTR
+```
+
+### Flag Emojis
+
+```php
+echo LocaleInfo::flag('en'); // → 🇺🇸
+echo LocaleInfo::flag('es'); // → 🇪🇸
+echo LocaleInfo::flag('fr'); // → 🇫🇷
+echo LocaleInfo::flag('jp'); // → 🇯🇵
+echo LocaleInfo::flag('br'); // → 🇧🇷
+```
+
+### Script & Knowledge
+
+```php
+echo LocaleInfo::script('en'); // → "Latn"
+echo LocaleInfo::script('ar'); // → "Arab"
+echo LocaleInfo::script('ru'); // → "Cyrl"
+echo LocaleInfo::script('ja'); // → "Jpan"
+echo LocaleInfo::script('ko'); // → "Kore"
+
+echo LocaleInfo::isKnown('en'); // → true
+echo LocaleInfo::isKnown('xx'); // → false
+
+$allCodes = LocaleInfo::allCodes(); // 50+ locale codes
+```
+
+---
+
+## Loaders
+
+### FileLoader
+
+Loads from JSON and PHP files with security hardening.
+
+```php
+use MonkeysLegion\I18n\Loaders\FileLoader;
+
+$loader = new FileLoader('/path/to/lang');
+
+// Loads from /path/to/lang/{locale}/{group}.json
+$messages = $loader->load('en', 'messages');
+
+// Add namespace path
+$loader->addNamespace('billing', '/path/to/billing/lang');
+
+// Security features:
+// ✅ Path traversal prevention (realpath validation)
+// ✅ Null byte injection prevention
+// ✅ Max file size limit (2MB)
+// ✅ JSON_THROW_ON_ERROR on all json_decode
+// ✅ Symlink resolution and validation
+```
+
+### DatabaseLoader
+
+Load translations from any SQL database — **MySQL, MariaDB, PostgreSQL, and SQLite**.
+
+#### Install the Schema
+
+Ready-to-use SQL files are included in `schema/`:
+
+```bash
+# MySQL / MariaDB
+mysql -u root -p your_database < schema/mysql.sql
+
+# PostgreSQL
+psql -U postgres -d your_database -f schema/pgsql.sql
+
+# SQLite
+sqlite3 storage/database.sqlite < schema/sqlite.sql
+```
+
+#### Schema (MySQL)
+
+```sql
+CREATE TABLE IF NOT EXISTS translations (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    locale VARCHAR(10) NOT NULL,
+    `group` VARCHAR(50) NOT NULL,
+    namespace VARCHAR(50) NOT NULL DEFAULT '',
+    `key` VARCHAR(255) NOT NULL,
+    value TEXT NOT NULL,
+    source VARCHAR(50) NOT NULL DEFAULT 'file',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE INDEX idx_translation_unique (locale, `group`, namespace, `key`),
+    INDEX idx_translation_locale (locale),
+    INDEX idx_translation_group (locale, `group`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### Schema (PostgreSQL)
+
+```sql
+CREATE TABLE IF NOT EXISTS translations (
+    id BIGSERIAL PRIMARY KEY,
+    locale VARCHAR(10) NOT NULL,
+    "group" VARCHAR(50) NOT NULL,
+    namespace VARCHAR(50) NOT NULL DEFAULT '',
+    "key" VARCHAR(255) NOT NULL,
+    value TEXT NOT NULL,
+    source VARCHAR(50) NOT NULL DEFAULT 'file',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (locale, "group", namespace, "key")
+);
+```
+
+#### Schema (SQLite)
+
+```sql
+CREATE TABLE IF NOT EXISTS translations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    locale TEXT NOT NULL,
+    "group" TEXT NOT NULL,
+    namespace TEXT NOT NULL DEFAULT '',
+    "key" TEXT NOT NULL,
+    value TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'file',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (locale, "group", namespace, "key")
+);
+```
+
+#### Usage
+
+```php
+use MonkeysLegion\I18n\Loaders\DatabaseLoader;
+
+// Works with any PDO connection — auto-detects driver
+$loader = new DatabaseLoader($pdo, 'translations');
+$messages = $loader->load('en', 'messages');
+
+// Stack with FileLoader (DB translations override file translations)
+$translator = new Translator('en', 'en');
+$translator->addLoader(new FileLoader('/path/to/lang'));  // Base
+$translator->addLoader($loader);                           // Override
+
+// Or use TranslatorFactory (recommended)
+$translator = TranslatorFactory::create([
+    'path' => '/path/to/lang',
+    'pdo'  => $pdo,           // Enables DatabaseLoader automatically
+]);
+
+// Security features:
+// ✅ Table name validated against regex pattern
+// ✅ All queries use parameterized statements
+// ✅ Cross-database UPSERT (ON CONFLICT / ON DUPLICATE KEY)
+// ✅ Readonly PDO property
+```
+
+### CacheLoader
+
+Decorator that caches translations from any other loader.
+
+```php
+use MonkeysLegion\I18n\Loaders\CacheLoader;
+
+$cached = new CacheLoader(
+    loader: $fileLoader,
+    cache: $psr16Cache,
+    ttl: 3600,
+    prefix: 'i18n',
+);
+
+// Features:
+// ✅ TTL jitter (±10%) to prevent thundering herd
+// ✅ Selective cache invalidation
+// ✅ Flush all cached translations
+
+$cached->forget('en', 'messages');     // Clear specific group
+$cached->flush();                       // Clear all
+```
+
+### CompiledLoader
+
+Opcache-friendly compiled PHP files — 10-50x faster than JSON decode.
+
+```php
+use MonkeysLegion\I18n\Loaders\CompiledLoader;
+
+$compiled = new CompiledLoader(
+    sourceLoader: $fileLoader,
+    compilePath: '/var/cache/i18n',
+);
+
+// Compile all translations for a locale
+$compiled->compile('en', '/path/to/lang');
+// → Creates /var/cache/i18n/en.compiled.php
+
+// Check if compiled cache is fresh
+if (!$compiled->isFresh('en', '/path/to/lang')) {
+    $compiled->compile('en', '/path/to/lang');
+}
+
+// Invalidate
+$compiled->invalidate('en');
+
+// Atomic writes via temp file + rename
+// Auto opcache invalidation
+```
+
+### MlcLoader
+
+Zero-dependency alternative to YAML — uses a simple key=value format.
+
+```php
+use MonkeysLegion\I18n\Loaders\MlcLoader;
+
+$loader = new MlcLoader('/path/to/lang');
+$messages = $loader->load('en', 'messages');
+// Loads from /path/to/lang/en/messages.mlc
+```
+
+**MLC file format (flat — one group per file):**
+
+```ini
+# resources/lang/en/messages.mlc
+
+# Comments start with # or ;
+welcome = Welcome!
+greeting = Hello, :name!
+farewell = "Goodbye, :NAME!"
+
+# Dot notation creates nested arrays
+nested.key = Nested value
+nested.deep.value = Deep nested value
+
+# Escape sequences in double-quoted values
+multiline = "Line one\nLine two"
+```
+
+**MLC file format (sectioned — multiple groups per file):**
+
+```ini
+# resources/lang/es.mlc
+
+[messages]
+welcome = ¡Bienvenido!
+greeting = ¡Hola, :name!
+
+[validation]
+required = El campo :field es obligatorio.
+email = Ingrese un correo electrónico válido.
+```
+
+**Why MLC over YAML?**
+- Zero external dependencies (no `symfony/yaml`)
+- Simpler syntax, less error-prone
+- Translators don't need to learn YAML indentation rules
+- Same security hardening as FileLoader
+
+---
+
+## Middleware
+
+### LocaleMiddleware
+
+Auto-detect and set locale for each request.
+
+```php
+use MonkeysLegion\I18n\Middleware\LocaleMiddleware;
+
+$middleware = new LocaleMiddleware(
+    manager: $localeManager,
+    translator: $translator,
+    setSession: true,
+    setCookie: true,
+    cookieTtl: 31536000, // 1 year
+);
+
+// Security features:
+// ✅ SameSite=Lax on cookies
+// ✅ HttpOnly flag
+// ✅ Secure flag when HTTPS
+// ✅ headers_sent() guard
+```
+
+### LocaleUrlMiddleware
+
+Extract locale from URL path segment.
+
+```php
+use MonkeysLegion\I18n\Middleware\LocaleUrlMiddleware;
+
+// /es/products → sets locale to "es"
+$middleware = new LocaleUrlMiddleware($manager, $translator, segment: 0);
+```
+
+### LocaleRedirectMiddleware
+
+Auto-redirect to localized URL if locale prefix is missing.
+
+```php
+use MonkeysLegion\I18n\Middleware\LocaleRedirectMiddleware;
+
+// /products → 302 → /en/products
+$middleware = new LocaleRedirectMiddleware($manager, segment: 0);
+
+// No exit() call — returns redirect response array
+// ✅ headers_sent() guard
+```
+
+---
+
+## Enums
+
+### PluralCategory
+
+```php
+use MonkeysLegion\I18n\Enum\PluralCategory;
+
+// ICU plural categories
+PluralCategory::Zero;   // "zero"
+PluralCategory::One;    // "one"
+PluralCategory::Two;    // "two"
+PluralCategory::Few;    // "few"
+PluralCategory::Many;   // "many"
+PluralCategory::Other;  // "other"
+
+PluralCategory::Other->isDefault(); // → true
+PluralCategory::ordered();          // Ordered list
+
+// Get plural category for a count in a locale
+$pluralizer = new Pluralizer();
+$cat = $pluralizer->getCategoryForCount(5, 'en');
+// → PluralCategory::Other
+
+$cat = $pluralizer->getCategoryForCount(2, 'ar');
+// → PluralCategory::Two
+```
+
+### Direction
+
+```php
+use MonkeysLegion\I18n\Enum\Direction;
+
+Direction::LTR; // "ltr"
+Direction::RTL; // "rtl"
+
+Direction::fromLocale('en'); // → Direction::LTR
+Direction::fromLocale('ar'); // → Direction::RTL
+Direction::fromLocale('he'); // → Direction::RTL
+Direction::fromLocale('fa'); // → Direction::RTL
+
+Direction::RTL->cssAttribute(); // → 'dir="rtl"'
+```
+
+---
+
+## Attributes
+
+### #[Translatable]
+
+Mark entity properties for automatic translation:
+
+```php
+use MonkeysLegion\I18n\Attribute\Translatable;
+
+class Product
+{
+    #[Translatable(group: 'products', keyPrefix: 'title')]
+    public string $title;
+
+    #[Translatable(group: 'products', keyPrefix: 'description', fallbackToValue: true)]
+    public string $description;
 }
 ```
 
-## API Reference
+### #[Locale]
 
-### Translator Methods
+Auto-inject the detected locale into controller parameters:
 
 ```php
-// Basic translation
-$translator->trans(string $key, array $replace = [], ?string $locale = null): string
+use MonkeysLegion\I18n\Attribute\Locale;
 
-// Pluralization
-$translator->choice(string $key, int|float $count, array $replace = [], ?string $locale = null): string
-
-// Check if translation exists
-$translator->has(string $key, ?string $locale = null): bool
-
-// Locale management
-$translator->getLocale(): string
-$translator->setLocale(string $locale): void
-$translator->getFallbackLocale(): string
-$translator->setFallbackLocale(string $locale): void
-
-// Missing translations
-$translator->setTrackMissing(bool $track): void
-$translator->getMissingTranslations(): array
-$translator->clearMissingTranslations(): void
+class ProductController
+{
+    public function index(#[Locale] string $locale): Response
+    {
+        // $locale is auto-populated from the detected locale
+    }
+}
 ```
 
-### Helper Functions
+---
+
+## Events
 
 ```php
-// Short syntax for translations
-__('messages.welcome');
-__('messages.greeting', ['name' => 'Yorch']);
+use MonkeysLegion\I18n\Event\LocaleChangedEvent;
 
-// Pluralization
-trans_choice('cart.items', $count);
+// Immutable event (readonly class)
+$translator->setEventDispatcher(function (LocaleChangedEvent $event): void {
+    echo $event->previousLocale; // → "en"
+    echo $event->newLocale;      // → "es"
 
-// Get/Set locale
-lang();          // Get current locale
-lang('es');      // Set locale
+    // Update user preferences, reconfigure formatters, etc.
+});
 ```
 
-## Configuration
+---
 
-Create a configuration file for easy setup:
+## Template Directives
 
-**`config/i18n.php`**
+For use with MonkeysLegion-Template engine:
 
 ```php
-<?php
+use MonkeysLegion\I18n\Template\I18nDirectives;
 
-return [
-    'locale' => env('LOCALE', 'en'),
-    'fallback' => env('FALLBACK_LOCALE', 'en'),
-    'path' => __DIR__ . '/../resources/lang',
+$directives = new I18nDirectives($translator);
 
-    // Supported locales
-    'supported_locales' => ['en', 'es', 'fr', 'de', 'it', 'pt'],
+// Register all directives
+foreach ($directives->getDirectives() as $name => $handler) {
+    $engine->directive($name, $handler);
+}
+```
 
-    // Auto-detection
-    'detectors' => ['url', 'session', 'cookie', 'header'],
+In templates:
 
-    // Database support (optional)
-    'pdo' => $pdo ?? null,
+```blade
+{{-- Translation --}}
+@lang('welcome.message')
+@lang('welcome.user', ['name' => $user->name])
 
-    // Caching (optional)
-    'cache' => $cache ?? null,
+{{-- Pluralization --}}
+@choice('messages.count', $count)
+
+{{-- Current locale --}}
+@locale
+
+{{-- Formatting --}}
+@date($order->created_at, 'long')
+@currency($product->price, 'USD')
+@number($total, 2)
+```
+
+---
+
+## Helper Functions
+
+Global helper functions for convenience:
+
+```php
+// Translation
+echo trans('messages.welcome');
+echo trans('messages.greeting', ['name' => 'Yorch']);
+
+// Shorthand alias (__)
+echo __('messages.welcome');
+echo __('messages.greeting', ['name' => 'Yorch']);
+
+// Pluralization
+echo trans_choice('messages.items', 5);
+echo trans_choice('messages.items', 1, ['color' => 'red']);
+
+// Get/set locale
+echo lang();        // → "en"
+lang('es');          // Sets locale to "es"
+echo lang();        // → "es"
+```
+
+---
+
+## TranslatorFactory
+
+One-line creation with all features:
+
+```php
+use MonkeysLegion\I18n\TranslatorFactory;
+
+// Basic
+$translator = TranslatorFactory::create([
+    'locale'   => 'en',
+    'fallback' => 'en',
+    'path'     => '/path/to/lang',
+]);
+
+// With caching
+$translator = TranslatorFactory::create([
+    'locale'    => 'en',
+    'path'      => '/path/to/lang',
+    'cache'     => $psr16Cache,
     'cache_ttl' => 3600,
+]);
 
-    // Development
-    'track_missing' => env('APP_DEBUG', false),
+// With compiled loader (production)
+$translator = TranslatorFactory::create([
+    'locale'        => 'en',
+    'path'          => '/path/to/lang',
+    'compiled_path' => '/var/cache/i18n',
+]);
+
+// With database
+$translator = TranslatorFactory::create([
+    'locale'    => 'en',
+    'path'      => '/path/to/lang',
+    'pdo'       => $pdo,
+    'cache'     => $cache,
+]);
+
+// With namespaces
+$translator = TranslatorFactory::create([
+    'locale'     => 'en',
+    'path'       => '/path/to/lang',
+    'namespaces' => [
+        'billing' => '/path/to/billing/lang',
+        'email'   => '/path/to/email/lang',
+    ],
+]);
+
+// Full system (translator + manager)
+['translator' => $t, 'manager' => $m] = TranslatorFactory::createSystem([
+    'default'   => 'en',
+    'supported' => ['en', 'es', 'fr'],
+    'path'      => '/path/to/lang',
+    'detectors' => ['url', 'session', 'cookie', 'header'],
+]);
+
+// Number & Date formatters
+$nf = TranslatorFactory::createNumberFormatter();
+$df = TranslatorFactory::createDateFormatter();
+```
+
+---
+
+## Translation Management
+
+Full CRUD management for file and database translations:
+
+```php
+use MonkeysLegion\I18n\Management\TranslationManager;
+
+$manager = new TranslationManager($pdo, $translator, '/path/to/lang');
+
+// CRUD
+$manager->set('en', 'messages', 'welcome', 'Hello!');
+echo $manager->get('en', 'messages', 'welcome'); // → "Hello!"
+$manager->delete('en', 'messages', 'welcome');
+
+// Import/Export
+$manager->importFromFile('en', 'messages');
+$manager->exportToFile('en', 'messages', 'json');
+$manager->importArray('en', 'messages', ['key' => 'value'], overwrite: true);
+
+// Sync
+$manager->sync('en', 'messages', 'file_to_db');
+$manager->sync('en', 'messages', 'db_to_file');
+
+// Merged (DB overrides file)
+$all = $manager->getAllMerged('en', 'messages');
+
+// Search
+$results = $manager->search('welcome', locale: 'en');
+
+// Statistics
+$stats = $manager->getStats();
+// ['total' => 150, 'by_locale' => [...], 'by_group' => [...], 'by_source' => [...]]
+
+// Batch update
+$manager->batchUpdate([
+    ['locale' => 'en', 'group' => 'messages', 'key' => 'welcome', 'value' => 'Hi!'],
+    ['locale' => 'en', 'group' => 'messages', 'key' => 'goodbye', 'value' => 'Bye!'],
+]);
+
+// Find missing (file keys not in DB)
+$missing = $manager->findMissing('en', 'messages');
+```
+
+---
+
+## CLI Commands
+
+```php
+use MonkeysLegion\I18n\Console\TranslationCommand;
+
+$cmd = new TranslationCommand($translator, '/path/to/lang');
+
+// Extract translation keys from source code
+$cmd->extract('/path/to/src', '/path/to/output.json');
+// Scans for trans(), __(), @lang(), @choice() calls
+
+// Find missing translations
+$cmd->missing('es');
+// ✗ Found 5 missing translations:
+//   - messages.new_feature
+//   - validation.custom_rule
+
+// Compare two locales
+$cmd->compare('en', 'es');
+// Missing in es (3):
+//   - messages.new_key
+//   - validation.rule
+
+// Export translations
+$cmd->export('en', 'json', '/path/to/export.json');
+$cmd->export('en', 'csv', '/path/to/export.csv');
+$cmd->export('en', 'php', '/path/to/export.php');
+```
+
+---
+
+## Security
+
+### Path Traversal Prevention
+```php
+// FileLoader validates all path segments
+$loader->load('../etc', 'passwd');     // ❌ LoaderException
+$loader->load("en\0", 'messages');     // ❌ LoaderException
+$loader->load('en/../../', 'msg');     // ❌ LoaderException
+```
+
+### Locale Injection Prevention
+```php
+// Translator validates locale format: /^[a-z]{2,3}(_[A-Z]{2})?$/
+new Translator('../etc/passwd');        // ❌ InvalidLocaleException
+new Translator("en\0");                 // ❌ InvalidLocaleException
+$translator->locale = '<script>';       // ❌ InvalidLocaleException
+```
+
+### SQL Injection Prevention
+```php
+// DatabaseLoader validates table names
+new DatabaseLoader($pdo, 'DROP TABLE users; --'); // ❌ InvalidArgumentException
+
+// All queries use parameterized statements
+```
+
+### XSS Protection
+```php
+// Enable auto-escaping in MessageFormatter
+$formatter = new MessageFormatter(autoEscape: true);
+// All :param replacements are HTML-escaped via htmlspecialchars()
+```
+
+### Cookie Security
+```php
+// LocaleMiddleware sets secure cookie flags
+// SameSite=Lax, HttpOnly, Secure (when HTTPS)
+```
+
+---
+
+## Performance
+
+### Compiled Loader (Production)
+
+```php
+// 10-50x faster than JSON decode per request
+$compiled = new CompiledLoader($fileLoader, '/var/cache/i18n');
+$compiled->compile('en', '/path/to/lang');
+
+// Uses PHP's opcache for near-zero overhead
+// Atomic writes (temp file + rename)
+// Auto mtime-based freshness checks
+```
+
+### Cache with Jitter
+
+```php
+// TTL jitter prevents thundering herd (cache stampede)
+// ±10% variation: TTL 3600 → random 3240-3960
+$cached = new CacheLoader($loader, $cache, ttl: 3600);
+```
+
+### Warm-Up
+
+```php
+// Pre-load all groups at boot time
+$translator->warmUp('en', ['messages', 'validation', 'auth', 'errors']);
+```
+
+### Const Array Pluralizer
+
+```php
+// Locale-to-rule mapping is a const array (PHP 8.4)
+// Zero overhead — compiled into opcache
+private const array LOCALE_RULES = [
+    'pl' => 'polish',
+    'ru' => 'russian',
+    // ...
 ];
 ```
 
-**Usage:**
+---
 
-```php
-<?php
+## Migration from v1
 
-$config = require 'config/i18n.php';
-$translator = TranslatorFactory::create($config);
+### Namespace Changes
+
+```diff
+- use MonkeysLegion\I18n\Contracts\LoaderInterface;
++ use MonkeysLegion\I18n\Contract\LoaderInterface;
 ```
 
-## Testing
+> **Note**: Backward-compatible aliases exist at `src/Contracts/aliases.php`.
 
-The package includes comprehensive tests:
+### Property Hooks
+
+```diff
+- $translator->getLocale();
++ $translator->locale;         // Read via property
++ $translator->getLocale();    // Still works (BC)
+
+- $translator->setLocale('es');
++ $translator->locale = 'es';  // Write via property hook
++ $translator->setLocale('es'); // Still works (BC)
+```
+
+### Locale Validation
+
+```diff
+// v1: No validation
+$translator = new Translator('../etc/passwd');
+
+// v2: Strict validation
++ $translator = new Translator('../etc/passwd');
++ // ❌ InvalidLocaleException
+```
+
+### Middleware Split
+
+```diff
+// v1: All middleware in single file
+- // src/Middleware/LocaleMiddleware.php contained 3 classes
+
+// v2: One class per file
++ src/Middleware/LocaleMiddleware.php
++ src/Middleware/LocaleUrlMiddleware.php
++ src/Middleware/LocaleRedirectMiddleware.php
+```
+
+---
+
+## Testing
 
 ```bash
 # Run all tests
 composer test
 
-# Run static analysis
-composer phpstan
+# Run with testdox output
+vendor/bin/phpunit --testdox
 
-# Run quality checks (PHPStan + PHPUnit)
-composer quality
+# Run specific test file
+vendor/bin/phpunit tests/Unit/I18nV2Test.php
+
+# Run specific test
+vendor/bin/phpunit --filter="translator_translates_basic_key"
 ```
 
-## Documentation
+### Test Coverage
 
-- **[USAGE.md](USAGE.md)** - Detailed usage guide
-- **[HYBRID_TRANSLATIONS.md](HYBRID_TRANSLATIONS.md)** - JSON + Database examples
-- **[QUICKSTART.md](QUICKSTART.md)** - Get started quickly
-- **[TESTING.md](TESTING.md)** - Testing guidelines
+- **139 tests**, **250+ assertions**
+- Covers: Translator, Pluralizer, MessageFormatter, NumberFormatter, DateFormatter, LocaleManager, LocaleInfo, FileLoader, MlcLoader, CompiledLoader, Enums, Attributes, Events, Factory, CLI
 
-## Requirements
-
-- PHP 8.4 or higher
-- ext-json
-- ext-mbstring
-- PDO with MySQL/PostgreSQL driver (optional, for database translations)
-- PSR-16 CacheInterface implementation (optional, for caching)
+---
 
 ## License
 
-MIT
+MIT License. See [LICENSE](LICENSE) for details.
 
-## Contributing
-
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
-## Credits
-
-Created by [MonkeysCloud](https://monkeys.cloud)
+**Built with ❤️ by [MonkeysCloud](https://monkeys.cloud)**

@@ -4,24 +4,31 @@ declare(strict_types=1);
 
 namespace MonkeysLegion\I18n\Detectors;
 
-use MonkeysLegion\I18n\Contracts\LocaleDetectorInterface;
+use MonkeysLegion\I18n\Contract\LocaleDetectorInterface;
 
 /**
- * Detects locale from cookie
+ * Detects locale from cookie.
  */
 final class CookieDetector implements LocaleDetectorInterface
 {
-    private string $name;
+    private string $cookieName;
 
-    public function __construct(string $name = 'locale')
+    public function __construct(string $cookieName = 'locale')
     {
-        $this->name = $name;
+        $this->cookieName = $cookieName;
     }
 
     public function detect(): ?string
     {
-        $value = $_COOKIE[$this->name] ?? null;
+        $locale = $_COOKIE[$this->cookieName] ?? null;
 
-        return is_string($value) ? $value : null;
+        if (!is_string($locale) || $locale === '') {
+            return null;
+        }
+
+        // Sanitize cookie value
+        $locale = preg_replace('/[^a-zA-Z_]/', '', $locale);
+
+        return is_string($locale) && $locale !== '' ? strtolower($locale) : null;
     }
 }

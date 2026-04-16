@@ -2,20 +2,13 @@
 
 declare(strict_types=1);
 
+/**
+ * Backward compatibility stub: MonkeysLegion\I18n\Contracts\MessageFormatterInterface
+ * → canonical MonkeysLegion\I18n\Contract\MessageFormatterInterface
+ */
+
 namespace MonkeysLegion\I18n\Contracts;
 
-/**
- * Interface for message formatters
- */
-interface MessageFormatterInterface
+interface MessageFormatterInterface extends \MonkeysLegion\I18n\Contract\MessageFormatterInterface
 {
-    /**
-     * Format a message with replacements
-     * 
-     * @param string $message Message template
-     * @param array<string, mixed> $replace Replacement values
-     * @param string $locale Locale for formatting
-     * @return string Formatted message
-     */
-    public function format(string $message, array $replace = [], string $locale = 'en'): string;
 }

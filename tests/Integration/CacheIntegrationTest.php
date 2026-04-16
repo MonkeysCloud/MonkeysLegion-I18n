@@ -46,10 +46,17 @@ class CacheIntegrationTest extends TestCase
             ->with('i18n.en.messages')
             ->willReturn(null); // First time miss
 
-        // Expect cache->set called
+        // Expect cache->set called (TTL may have ±10% jitter)
         $cache->expects($this->once())
             ->method('set')
-            ->with('i18n.en.messages', ['welcome' => 'Welcome Cached!'], 3600);
+            ->with(
+                'i18n.en.messages',
+                ['welcome' => 'Welcome Cached!'],
+                $this->logicalAnd(
+                    $this->greaterThanOrEqual(3240),
+                    $this->lessThanOrEqual(3960),
+                ),
+            );
 
         $translator = TranslatorFactory::create([
             'locale' => 'en',
