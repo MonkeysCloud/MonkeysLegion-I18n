@@ -6,48 +6,40 @@ namespace MonkeysLegion\I18n\Middleware;
 
 use MonkeysLegion\I18n\LocaleManager;
 use MonkeysLegion\I18n\Translator;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * Middleware to detect and set locale for each request.
+ * PSR-15 middleware to detect and set locale for each request.
  *
  * Security:
  * - SameSite=Lax on cookies
  * - HttpOnly + Secure flags
  * - Locale validated before use
+ *
+ * @copyright 2026 MonkeysCloud Team
+ * @license   MIT
  */
-final class LocaleMiddleware
+final class LocaleMiddleware implements MiddlewareInterface
 {
-    // ── Properties ────────────────────────────────────────────────
-
-    private readonly LocaleManager $manager;
-    private readonly Translator $translator;
-    private readonly bool $setSession;
-    private readonly bool $setCookie;
-    private readonly int $cookieTtl;
-
     // ── Constructor ───────────────────────────────────────────────
 
     public function __construct(
-        LocaleManager $manager,
-        Translator $translator,
-        bool $setSession = true,
-        bool $setCookie = true,
-        int $cookieTtl = 31536000,
-    ) {
-        $this->manager = $manager;
-        $this->translator = $translator;
-        $this->setSession = $setSession;
-        $this->setCookie = $setCookie;
-        $this->cookieTtl = $cookieTtl;
-    }
+        private readonly LocaleManager $manager,
+        private readonly Translator $translator,
+        private readonly bool $setSession = true,
+        private readonly bool $setCookie = true,
+        private readonly int $cookieTtl = 31536000,
+    ) {}
 
-    // ── Handle ────────────────────────────────────────────────────
+    // ── PSR-15 MiddlewareInterface ────────────────────────────────
 
-    /**
-     * Handle the request.
-     */
-    public function handle(mixed $request, callable $next): mixed
-    {
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+    ): ResponseInterface {
         // Detect locale
         $locale = $this->manager->detectLocale();
 
@@ -59,7 +51,10 @@ final class LocaleMiddleware
             $_SESSION['locale'] = $locale;
         }
 
-        // Store in cookie with security flags
+        // Process request through the pipeline
+        $response = $handler->handle($request);
+
+        // Store locale in cookie with security flags
         if ($this->setCookie && !headers_sent()) {
             setcookie(
                 'locale',
@@ -74,7 +69,6 @@ final class LocaleMiddleware
             );
         }
 
-        // Continue request
-        return $next($request);
+        return $response;
     }
 }
